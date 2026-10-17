@@ -6,6 +6,7 @@ resolution, and answers one yes/no question. A candidate becomes a violation onl
 the violating one; "unclear" never confirms.
 """
 
+import asyncio
 from dataclasses import dataclass
 
 from app.config import Settings
@@ -19,6 +20,33 @@ class Spec:
     violation: str      # the answer that confirms the violation: "yes" or "no"
     before: float       # seconds of context before the candidate start
     after: float        # seconds after the candidate end
+
+
+OPPOSITE = {"yes": "no", "no": "yes"}
+# Opposite-polarity questions: an 8B model answers "no" to most yes/no questions (r9: 21/21 "no" on cash-left
+# candidates, 7/7 "no" = confirmation on clean-clip ID candidates). Requiring consistent answers to a question and
+# its negation cancels that bias.
+NEGATIONS = {
+    "no_client_identification": "Does the cashier take or count the customer's cash before any ID card, passport or "
+        "phone screen has been handed over or shown?",
+    "no_confirmation_document": "Does the customer leave the window without receiving any paper, receipt or document "
+        "from the cashier?",
+    "cash_left_unsecured": "Is all cash on the desk put away into a drawer, safe or cabinet (and closed), or handed to "
+        "the customer, before a new customer is served or the cashier turns to another task?",
+    "leaves_during_service": "Does the cashier stay at the workstation for as long as the customer is at the window?",
+    "cash_room_door_open": "Is the door of the cashier's booth or cash room closed, or only opened briefly to pass, "
+        "throughout these frames?",
+    "outsider_in_cash_room": "Is the cashier the only person inside the cashier's enclosed working area (nobody else "
+        "behind the counter)?",
+    "personal_items_in_cash_area": "Is the cashier's desk free of personal items (handbag, wallet, personal phone, cup, "
+        "food or drink)?",
+    "denominations_mixed": "Is each stack or band made of banknotes of one denomination only (same colour and size)?",
+    "documents_cash_mixed": "Does the cashier count the cash for each document separately?",
+    "collection_bag_not_checked": "Does the cashier turn over and inspect the collection bag and its seal before "
+        "accepting or opening it?",
+    "collection_visible_to_outsiders": "Does the cash collection handover take place out of sight and reach of "
+        "customers and outsiders?",
+}
 
 
 SPECS: dict[str, Spec] = {
@@ -102,17 +130,28 @@ async def ask(vlm: VLM, rule_id: str, start: float, end: float, video: DecodedVi
     frames = window_frames(video, start, end, spec, s)
     if not frames:
         return None
-    text = prompt.format(question=spec.question)
-    out = await vlm.chat_json([text_part(text)] + parts(frames, s.recheck_native), schema(), max_tokens=500)
+    images = parts(frames, s.recheck_native)
+
+    async def one(question: str) -> tuple[str, float, dict]:
+        out = await vlm.chat_json([text_part(prompt.format(question=question))] + images, schema(), max_tokens=500)
+        try:
+            conf = min(1.0, max(0.0, float(out.get("confidence", 0))))
+        except (TypeError, ValueError):
+            conf = 0.0
+        return out.get("answer", "unclear"), conf, out
+
+    negation = NEGATIONS.get(rule_id) if s.recheck_contrast else None
+    if negation:
+        (answer, conf, out), (neg_answer, neg_conf, _) = await asyncio.gather(one(spec.question), one(negation))
+        consistent = neg_answer == OPPOSITE.get(spec.violation) and neg_conf >= s.recheck_min_conf
+        label = f"{answer}/{neg_answer}"
+    else:
+        answer, conf, out = await one(spec.question)
+        consistent, label = True, answer
     allowed = {f.frame_id for f in frames}
-    answer = out.get("answer", "unclear")
-    try:
-        conf = min(1.0, max(0.0, float(out.get("confidence", 0))))
-    except (TypeError, ValueError):
-        conf = 0.0
     return {
-        "answer": answer,
-        "confirmed": answer == spec.violation and conf >= s.recheck_min_conf,
+        "answer": label,
+        "confirmed": answer == spec.violation and conf >= s.recheck_min_conf and consistent,
         "frame_id": out.get("frame_id") if out.get("frame_id") in allowed else None,
         "confidence": conf,
         "observation": str(out.get("observation", "")).strip(),

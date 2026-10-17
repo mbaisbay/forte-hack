@@ -58,6 +58,7 @@ class Settings:
     recheck_max_frames: int = field(default_factory=lambda: int(_env("RECHECK_MAX_FRAMES", "32")))
     recheck_native: bool = field(default_factory=lambda: _env("RECHECK_NATIVE", "1") == "1")
     recheck_min_conf: float = field(default_factory=lambda: float(_env("RECHECK_MIN_CONF", "0.5")))
+    recheck_contrast: bool = field(default_factory=lambda: _env("RECHECK_CONTRAST", "1") == "1")
     # Extra JSON merged into every model request, e.g. {"chat_template_kwargs": {"enable_thinking": false}}.
     vlm_extra_body: str = field(default_factory=lambda: _env("VLM_EXTRA_BODY", ""))
 
