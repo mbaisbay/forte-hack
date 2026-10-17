@@ -20,3 +20,4 @@ fortebank_hackathon_coding_agent_brief.md
 reports/
 *.xlsx
 audit/
+audit_*/
