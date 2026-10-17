@@ -1,0 +1,33 @@
+{
+  "_note": "DRAFT categories so the pipeline runs end to end. Replace with the teammate's violation types and reviewed sources from research/regulations.md. 'verified': true only after a human has read the source.",
+  "version": "draft-0",
+  "rules": [
+    {
+      "rule_id": "cash_unattended",
+      "enabled": true,
+      "verified": false,
+      "type_ru": "Наличные оставлены без присмотра",
+      "visual_cue": "Cash or an open cash drawer is left on the desk while the cashier walks away or turns away from the workstation.",
+      "not_a_violation": "Cashier briefly reaches for something within arm's length; cash is locked or covered.",
+      "source": {"title": null, "section": null, "url": null, "quote": null}
+    },
+    {
+      "rule_id": "unauthorized_person",
+      "enabled": true,
+      "verified": false,
+      "type_ru": "Посторонний в кассовой зоне",
+      "visual_cue": "A person who is not the cashier enters the cashier's side of the desk or touches cash there.",
+      "not_a_violation": "A customer stays on the customer side of the window; cash collectors in a handover.",
+      "source": {"title": null, "section": null, "url": null, "quote": null}
+    },
+    {
+      "rule_id": "other_suspicious",
+      "enabled": true,
+      "verified": false,
+      "type_ru": "Иное нарушение порядка работы с наличными",
+      "visual_cue": "Any other clearly visible handling of cash, valuables, or the workstation that departs from careful cash procedure.",
+      "not_a_violation": "Normal counting, serving a customer, typing, routine movement.",
+      "source": {"title": null, "section": null, "url": null, "quote": null}
+    }
+  ]
+}

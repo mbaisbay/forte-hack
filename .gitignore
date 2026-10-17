@@ -1,0 +1,14 @@
+# competition data and anything derived from it: never commit
+open/
+data/
+jobs/
+models/
+*.mov
+*.mp4
+eval_details*.json
+.env
+.venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+.DS_Store
