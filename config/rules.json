@@ -1,10 +1,12 @@
 {
-  "_note": "v2. Types and codes come from the team's catalogue (Каталог правил, Datathon 26, 17.10.2026) and labels_fixed.xlsx. 'codes' are the label codes <act>.<point>.<subpoint>. verified=true means the quote was checked against the team catalogue; 53.26.1 has no confirmed source yet.",
+  "_note": "v2. Types and codes come from the team's catalogue (Каталог правил, Datathon 26, 17.10.2026) and labels_fixed.xlsx. 'codes' are the label codes <act>.<point>.<subpoint>. verified=true means the quote was checked against the team catalogue; 53.26.1 cites ARDFM № 53 (03.04.2026) п.26 пп.1 plus п.71 пп.9, accepted by the team on 17.10.2026.",
   "version": "v2",
   "rules": [
     {
       "rule_id": "no_client_identification",
-      "codes": ["231.19.1"],
+      "codes": [
+        "231.19.1"
+      ],
       "enabled": true,
       "verified": true,
       "type_ru": "Операция проведена без визуальной идентификации клиента",
@@ -20,7 +22,9 @@
     },
     {
       "rule_id": "amount_not_reconciled",
-      "codes": ["231.19.4"],
+      "codes": [
+        "231.19.4"
+      ],
       "enabled": true,
       "verified": true,
       "type_ru": "Сумма не сверена с приходным документом",
@@ -36,7 +40,9 @@
     },
     {
       "rule_id": "no_confirmation_document",
-      "codes": ["231.19.6"],
+      "codes": [
+        "231.19.6"
+      ],
       "enabled": true,
       "verified": true,
       "type_ru": "Клиенту не выдан документ, подтверждающий операцию",
@@ -52,7 +58,9 @@
     },
     {
       "rule_id": "cash_left_unsecured",
-      "codes": ["231.20.1"],
+      "codes": [
+        "231.20.1"
+      ],
       "enabled": true,
       "verified": true,
       "type_ru": "Наличные оставлены вне закрываемого хранилища",
@@ -68,7 +76,9 @@
     },
     {
       "rule_id": "documents_cash_mixed",
-      "codes": ["231.21.1"],
+      "codes": [
+        "231.21.1"
+      ],
       "enabled": true,
       "verified": true,
       "type_ru": "Наличные по нескольким документам приняты вместе",
@@ -84,7 +94,9 @@
     },
     {
       "rule_id": "leaves_during_service",
-      "codes": ["231.22.1"],
+      "codes": [
+        "231.22.1"
+      ],
       "enabled": true,
       "verified": true,
       "type_ru": "Кассир покинул рабочее место до окончания обслуживания клиента",
@@ -100,11 +112,13 @@
     },
     {
       "rule_id": "personal_items_in_cash_area",
-      "codes": ["231.12.1"],
+      "codes": [
+        "231.12.1"
+      ],
       "enabled": true,
       "verified": true,
       "type_ru": "Личные вещи в кассовой зоне",
-      "visual_cue": "Personal belongings are on the cashier's desk or used at the workstation: a handbag, wallet, personal phone, cup of coffee, food or drink.",
+      "visual_cue": "Personal belongings are on the cashier's desk or used at the workstation: a handbag, wallet, personal mobile phone (phones with a camera are not allowed), cup of coffee, food or drink.",
       "not_a_violation": "Work equipment: computer, keyboard, counting machine, detector, stamp, documents, desk phone.",
       "source": {
         "title": "Правила осуществления кассовых операций и операций по инкассации банкнот, монет и ценностей в банках второго уровня… (постановление Правления НБРК от 29.11.2019 № 231)",
@@ -116,7 +130,10 @@
     },
     {
       "rule_id": "collection_bag_not_checked",
-      "codes": ["231.24.3", "231.24.4"],
+      "codes": [
+        "231.24.3",
+        "231.24.4"
+      ],
       "enabled": true,
       "verified": true,
       "type_ru": "Инкассаторская сумка принята без проверки целостности",
@@ -132,7 +149,10 @@
     },
     {
       "rule_id": "denominations_mixed",
-      "codes": ["231.43.1", "231.46.1"],
+      "codes": [
+        "231.43.1",
+        "231.46.1"
+      ],
       "enabled": true,
       "verified": true,
       "type_ru": "Банкноты разных номиналов смешаны при сортировке и упаковке",
@@ -148,7 +168,9 @@
     },
     {
       "rule_id": "outsider_in_cash_room",
-      "codes": ["231.75.1"],
+      "codes": [
+        "231.75.1"
+      ],
       "enabled": true,
       "verified": true,
       "type_ru": "Посторонний в кассовом помещении",
@@ -164,7 +186,9 @@
     },
     {
       "rule_id": "cash_room_door_open",
-      "codes": ["14.08.1"],
+      "codes": [
+        "14.08.1"
+      ],
       "enabled": true,
       "verified": true,
       "type_ru": "Дверь кассового помещения оставлена открытой",
@@ -180,7 +204,9 @@
     },
     {
       "rule_id": "collection_visible_to_outsiders",
-      "codes": ["14.21.1"],
+      "codes": [
+        "14.21.1"
+      ],
       "enabled": true,
       "verified": true,
       "type_ru": "Инкассация проводится на виду у посторонних",
@@ -196,9 +222,11 @@
     },
     {
       "rule_id": "workstation_not_locked",
-      "codes": ["53.26.1"],
+      "codes": [
+        "53.26.1"
+      ],
       "enabled": true,
-      "verified": false,
+      "verified": true,
       "type_ru": "Компьютер не заблокирован при уходе с рабочего места",
       "visual_cue": "The cashier gets up and leaves the workstation while the computer screen stays on and unlocked, without pressing keys or clicking to lock it first.",
       "not_a_violation": "The cashier locks the computer (presses keys or clicks, the screen changes to a lock screen) before leaving.",
@@ -207,7 +235,7 @@
         "short_title": "Требования к информационной безопасности банков (пост. Правления АРРФР от 03.04.2026 № 53)",
         "section": "п. 26 пп. 1); см. также п. 71 пп. 9)",
         "url": "https://adilet.zan.kz/rus/docs/V2600038336",
-        "quote": "26. Работники структурных подразделений банка, организации: 1) отвечают за соблюдение требований к информационной безопасности, принятых в банке, организации"
+        "quote": "26. Работники структурных подразделений банка, организации: 1) отвечают за соблюдение требований к информационной безопасности, принятых в банке, организации; 71. … 9) при неактивности пользователя более 30 (тридцати) минут информационная система автоматически завершает сеанс работы пользователя либо блокирует рабочую станцию или ноутбук…"
       }
     }
   ]
