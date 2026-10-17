@@ -20,6 +20,16 @@
       <p>Загрузите видео, чтобы найти фрагменты, требующие проверки человеком.</p>
     </div>
 
+    <section id="access-view" class="panel" aria-labelledby="access-title" hidden>
+      <h2 id="access-title" tabindex="-1">Код доступа</h2>
+      <form id="access-form">
+        <p class="muted">Введите код доступа, который вы получили вместе со ссылкой на сервис.</p>
+        <input id="access-code" class="access-input" type="password" autocomplete="off" required aria-label="Код доступа">
+        <p id="access-error" class="error-text" role="alert" hidden></p>
+        <div class="actions"><button type="submit">Войти</button></div>
+      </form>
+    </section>
+
     <section id="upload-view" class="panel" aria-labelledby="upload-title">
       <h2 id="upload-title">Выберите видео</h2>
       <form id="upload-form">

@@ -2,7 +2,7 @@
   'use strict';
 
   const $ = (id) => document.getElementById(id);
-  const views = ['upload', 'uploading', 'processing', 'failed', 'done'];
+  const views = ['access', 'upload', 'uploading', 'processing', 'failed', 'done'];
   const player = $('video-player');
   const lightbox = $('lightbox');
   let selectedFile = null;
@@ -19,6 +19,13 @@
     activeView = name;
     views.forEach((view) => { $(`${view}-view`).hidden = view !== name; });
     if (heading) $(heading).focus({ preventScroll: true });
+  }
+
+  function needAccess() {
+    stopWork();
+    $('access-error').hidden = true;
+    showView('access', 'access-title');
+    $('access-code').focus();
   }
 
   function stopWork() {
@@ -161,7 +168,9 @@
       if (token !== generation) return;
       uploadRequest = null;
       const payload = xhr.response;
-      if (xhr.status < 200 || xhr.status >= 300) {
+      if (xhr.status === 401) {
+        needAccess();
+      } else if (xhr.status < 200 || xhr.status >= 300) {
         fail(errorText(payload, `Не удалось загрузить видео. Код ответа: ${xhr.status}.`));
       } else if (!payload || typeof payload.job_id !== 'string' || !payload.job_id) {
         fail('Сервер не вернул номер задания. Попробуйте загрузить видео ещё раз.');
@@ -202,6 +211,10 @@
         signal: controller.signal, cache: 'no-store', headers: { Accept: 'application/json' }
       });
       if (token !== generation) return;
+      if (response.status === 401) {
+        needAccess();
+        return;
+      }
       if (!response.ok) {
         if (response.status >= 500 || [408, 429].includes(response.status)) throw new Error('retry');
         const payload = await response.json().catch(() => null);
@@ -349,5 +362,36 @@
     else reset(false);
   }
   window.addEventListener('hashchange', restoreHash);
-  if (location.hash) restoreHash();
+
+  $('access-form').addEventListener('submit', async (event) => {
+    event.preventDefault();
+    const button = event.submitter;
+    if (button) button.disabled = true;
+    try {
+      const response = await fetch('/ui/login', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ code: $('access-code').value.trim() })
+      });
+      if (!response.ok) {
+        $('access-error').textContent = response.status === 401 ? 'Неверный код доступа.' : `Ошибка входа. Код ответа: ${response.status}.`;
+        $('access-error').hidden = false;
+        return;
+      }
+      $('access-code').value = '';
+      restoreHash();
+    } catch {
+      $('access-error').textContent = 'Нет связи с сервером. Повторите попытку.';
+      $('access-error').hidden = false;
+    } finally {
+      if (button) button.disabled = false;
+    }
+  });
+
+  (async () => {
+    try {
+      const session = await (await fetch('/ui/session', { cache: 'no-store' })).json();
+      if (session.required && !session.ok) { needAccess(); return; }
+    } catch { /* server unreachable: the upload flow reports it */ }
+    if (location.hash) restoreHash();
+  })();
 })();

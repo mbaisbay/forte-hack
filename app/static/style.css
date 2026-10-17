@@ -8,6 +8,7 @@
 }
 * { box-sizing: border-box; }
 [hidden] { display: none !important; }
+.access-input { display: block; width: 100%; max-width: 320px; padding: 10px 12px; margin: 12px 0; border: 1px solid var(--border); border-radius: 8px; background: var(--surface); color: inherit; }
 body { margin: 0; background: var(--bg); color: var(--text); font: 16px/1.6 system-ui, -apple-system, "Segoe UI", sans-serif; }
 button, input { font: inherit; }
 button, a, summary, input { -webkit-tap-highlight-color: transparent; }

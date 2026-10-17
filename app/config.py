@@ -18,6 +18,8 @@ class Settings:
     rules_path: Path = field(default_factory=lambda: Path(_env("RULES_PATH", str(ROOT / "config" / "rules.json"))))
     prompts_dir: Path = field(default_factory=lambda: ROOT / "prompts")
     max_upload_mb: int = field(default_factory=lambda: int(_env("MAX_UPLOAD_MB", "500")))
+    # Shared code for the web UI behind a public URL; empty = UI open (local use). Jury API uses API_KEY.
+    ui_access_code: str = field(default_factory=lambda: _env("UI_ACCESS_CODE", ""))
 
     # Local VLM server (vLLM, OpenAI-compatible). Must be loopback: see vlm.py.
     vlm_base_url: str = field(default_factory=lambda: _env("VLM_BASE_URL", "http://127.0.0.1:8000/v1"))
