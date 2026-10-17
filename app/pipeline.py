@@ -144,6 +144,7 @@ def merge(cands: list[Candidate], gap: float) -> list[Candidate]:
             prev.sources = sorted(set(prev.sources) | set(c.sources))
             if c.confidence > prev.confidence:
                 prev.key_frame_id, prev.observation, prev.confidence = c.key_frame_id, c.observation, c.confidence
+                prev.evidence_ids = list(c.evidence_ids)  # evidence must follow the key frame it illustrates
         else:
             merged.append(Candidate(**{**c.__dict__, "evidence_ids": list(c.evidence_ids), "sources": list(c.sources)}))
     return sorted(merged, key=lambda c: c.start)
@@ -326,7 +327,9 @@ def build_result(job_id: str, events: list[Candidate], video: DecodedVideo, reg:
     for c in sorted(events, key=lambda c: c.start):
         rule = reg.get(c.rule_id)
         key = video.by_id(c.key_frame_id)
-        ids = c.evidence_ids or [c.key_frame_id]
+        ids = list(dict.fromkeys(c.evidence_ids or [c.key_frame_id]))
+        if c.key_frame_id not in ids:  # the reported timecode's frame is always among the evidence
+            ids = [c.key_frame_id] + ids[:2]
         frames = sorted({i: video.by_id(i) for i in ids if video.by_id(i)}.values(), key=lambda f: f.timestamp_sec)[:3]
         if not frames:
             frames = [key]

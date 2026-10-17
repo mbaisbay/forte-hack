@@ -142,3 +142,18 @@ def test_local_vlm_rejects_remote_url():
     from app.vlm import LocalVLM
     with pytest.raises(VLMError):
         LocalVLM("https://api.example.com/v1", "m", 1, 5)
+
+
+def test_merge_keeps_evidence_with_key_frame():
+    a = pipeline.Candidate("leaves_during_service", 1.0, 2.0, "F0006", 0.6, "a", "supported", ["F0004", "F0006"])
+    b = pipeline.Candidate("leaves_during_service", 2.5, 3.0, "F0016", 0.9, "b", "supported", ["F0015", "F0016", "F0017"])
+    m = pipeline.merge([a, b], 3.0)
+    assert len(m) == 1 and m[0].key_frame_id == "F0016" and m[0].evidence_ids == ["F0015", "F0016", "F0017"]
+
+
+def test_result_evidence_contains_key_frame(video):
+    c = pipeline.Candidate("leaves_during_service", 4.0, 4.0, video.frames[30].frame_id, 0.9, "x", "supported",
+                           [video.frames[1].frame_id, video.frames[2].frame_id, video.frames[3].frame_id])
+    r = pipeline.build_result("job", [c], video, REG)
+    ts = [f.timestamp_sec for f in r.violations[0].evidence_frames]
+    assert round(video.frames[30].timestamp_sec, 2) in ts and len(ts) <= 3
