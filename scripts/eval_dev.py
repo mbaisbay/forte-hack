@@ -115,6 +115,7 @@ def main() -> None:
     errs, secs, n_events = [], [], []
     details = {}
     diag: dict[str, list[dict]] = {}
+    meta_by_clip: dict[str, dict] = {}
     for i in ids:
         lab, out = labels[i], outs[i]
         secs.append(out["sec"])
@@ -128,7 +129,8 @@ def main() -> None:
         outcome = ("TP" if lab["violation"] else "FP") if pred else ("FN" if lab["violation"] else "TN")
         meta_path = args.results_dir / f"{out['job_id']}.meta.json"
         if meta_path.exists():
-            diag.setdefault(outcome, []).append(json.loads(meta_path.read_text()))
+            meta_by_clip[i] = json.loads(meta_path.read_text())
+            diag.setdefault(outcome, []).append(meta_by_clip[i])
         times = [v["timecode_sec"] for v in out["violations"]]
         n_events.append(len(times))
         if pred and lab["violation"]:
@@ -158,6 +160,13 @@ def main() -> None:
         print(f"events per clip: mean={statistics.mean(n_events):.2f} max={max(n_events)}")
     if secs:
         print(f"end-to-end sec: median={statistics.median(secs):.0f} max={max(secs):.0f} over_300={sum(s > 300 for s in secs)}")
+    near = lambda iv, t, pad=2.0: iv[0] - pad <= t <= iv[1] + pad
+    viol = [(m, labels[i]["time"]) for i, m in meta_by_clip.items() if labels[i]["violation"]]
+    if viol:
+        seen1 = sum(any(near(iv, t) for iv in m.get("pass1_intervals", [])) for m, t in viol)
+        kept = sum(any(near(iv, t) and iv[2] == "supported" for iv in m.get("final_intervals", [])) for m, t in viol)
+        print(f"label-time hit (±2s): pass-1 flagged near the label in {seen1}/{len(viol)} violation clips; "
+              f"re-check confirmed near the label in {kept}/{len(viol)}")
     for outcome in ("TP", "FN", "FP", "TN"):
         metas = diag.get(outcome, [])
         if not metas:

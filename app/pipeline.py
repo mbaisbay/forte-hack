@@ -216,6 +216,9 @@ async def run(video: DecodedVideo, vlm: VLM, reg: RuleRegistry, s: Settings, dea
     for c in final_pool:
         statuses[c.status] = statuses.get(c.status, 0) + 1
     stats["final_status_counts"] = statuses
+    # Times and statuses only (no text), for count-based diagnostics in eval_dev.py.
+    stats["pass1_intervals"] = [[round(c.start, 1), round(c.end, 1), round(c.confidence, 2)] for c in raw]
+    stats["final_intervals"] = [[round(c.start, 1), round(c.end, 1), c.status] for c in final_pool]
     kept = merge([c for c in final_pool if accepted(c, s)], s.merge_gap_sec)
     stats["accepted"] = len(kept)
     return kept, stats
