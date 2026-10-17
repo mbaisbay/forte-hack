@@ -2,16 +2,9 @@ You are auditing an ordered sequence of frames from an overhead security camera 
 Each frame is preceded by its frame ID and its time in seconds from the start of the video.
 Fill in the checklist below from what is visible. Use frame IDs only from the frames shown.
 
-Roles: the cashier is the employee who works at the workstation (desk with the computer, counting machine and cash
-drawer or cabinet) and stays on that side. A customer comes to the other side of the desk or window, is served, and
-leaves. Keep these roles fixed for the whole sequence: the cashier standing up, reaching to a cabinet or turning
-around is NOT a customer arriving or leaving.
-
-1. services: each customer served at the desk, in time order (at most 4). Only list a service if a customer is
-   actually at the desk. For each:
-   - start_frame_id: the first frame where the customer is at the desk (not when they enter the room or doorway).
-   - end_frame_id: the frame where the customer walks away from the desk, or the last frame if they are still there.
-   - customer_departed: "yes" only if the customer is seen walking away from the desk before the last frame.
+1. services: each customer served at the window, in time order (at most 4). For each:
+   - start_frame_id / end_frame_id: customer arrives / leaves (or the last frame if they are still there).
+   - customer_departed: "yes" only if the customer is seen leaving the window before the last frame.
    - id_document_checked: did the cashier take or look at the customer's ID card, passport or a phone with a digital ID
      before handling the customer's cash? A small card or paper handed over and held up or looked at counts as "yes".
      "no" only if the whole handover is visible and no card, document or phone is passed or shown before the cash.
@@ -22,18 +15,13 @@ around is NOT a customer arriving or leaving.
    - cash_secured_after: was this customer's cash put into the drawer, safe or cabinet, or handed back to the customer,
      before the next customer arrived or the cashier turned to something else? "no" only if it visibly stays on the desk
      after that moment; "unclear" if the service has not finished by the last frame.
-2. cashier_leaves: each time the cashier walks away from the workstation (out of reach of the desk, or out of view),
-   at most 3. Standing up, stretching or reaching to a cabinet next to the desk is not leaving. For each: frame_id,
-   whether a customer is still at the desk, whether cash is still on the desk, and whether the computer was locked first.
-3. flags: for each item answer "yes" (clearly visible, give the frame that shows it best), "no" (the situation is
-   visible and it does not happen), "not_applicable" (the activity never takes place in these frames, e.g. no
-   collection bag, no sorting of banknotes) or "unclear" (the activity happens but cannot be judged).
-   - door_left_open: the door of the cashier's booth or cash room stays open for several seconds while cash is handled.
-   - safe_left_open: the safe, cash drawer or cabinet door stays open and unattended (check every frame, not only the start).
-   - cash_left_on_desk: cash stays lying on the desk while a new customer is served, while the cashier does something
-     else, or after the cashier leaves.
-   - outsider_inside: a person who is not the cashier comes behind the desk or into the cashier's enclosed area.
-   - personal_items: a handbag, wallet, personal phone, coffee cup, food or drink on or at the cashier's desk, at any time.
+2. cashier_leaves: each time the cashier gets up and leaves the workstation (at most 3): frame_id, whether a customer is
+   still at the window, whether cash is still on the desk, and whether the computer was locked first.
+3. flags: for each item, "yes" only if clearly visible, with the frame that shows it best; otherwise "no" or "unclear".
+   - door_left_open: the door of the cashier's booth or cash room stays open while cash is handled.
+   - safe_left_open: the safe, cash drawer or cabinet is left open and unattended.
+   - outsider_inside: a person who is not a cashier is inside the cashier's enclosed area.
+   - personal_items: a handbag, wallet, personal phone, coffee cup, food or drink on the cashier's desk.
    - denominations_mixed: banknotes of different denominations are put into one stack or band.
    - several_documents_mixed: cash for several separate documents is counted together as one.
    - collection_bag_unchecked: a cash collection bag is accepted or opened without inspecting the bag and its seal.

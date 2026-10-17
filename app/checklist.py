@@ -15,13 +15,10 @@ from app.vlm import VLM, text_part
 
 TRI = {"type": "string", "enum": ["yes", "no", "unclear"]}
 FID = {"type": "string"}
-# "not_applicable" separates "the activity never happens" from "it happens but cannot be judged" (audit 2026-10-17).
-FLAG_ANSWER = {"type": "string", "enum": ["yes", "no", "not_applicable", "unclear"]}
-FLAG = {"type": "object", "properties": {"present": FLAG_ANSWER, "frame_id": FID}, "required": ["present", "frame_id"]}
+FLAG = {"type": "object", "properties": {"present": TRI, "frame_id": FID}, "required": ["present", "frame_id"]}
 FLAGS = {
     "door_left_open": "cash_room_door_open",
     "safe_left_open": "cash_left_unsecured",
-    "cash_left_on_desk": "cash_left_unsecured",
     "outsider_inside": "outsider_in_cash_room",
     "personal_items": "personal_items_in_cash_area",
     "denominations_mixed": "denominations_mixed",
