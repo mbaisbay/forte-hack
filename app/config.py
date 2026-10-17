@@ -59,6 +59,12 @@ class Settings:
     recheck_native: bool = field(default_factory=lambda: _env("RECHECK_NATIVE", "1") == "1")
     recheck_min_conf: float = field(default_factory=lambda: float(_env("RECHECK_MIN_CONF", "0.5")))
     recheck_contrast: bool = field(default_factory=lambda: _env("RECHECK_CONTRAST", "1") == "1")
+    # Scene-state timeline (door / safe / cash / cashier / customer every ~1.5 s) + persistence rules.
+    state_timeline: bool = field(default_factory=lambda: _env("STATE_TIMELINE", "0") == "1")
+    state_period_sec: float = field(default_factory=lambda: float(_env("STATE_PERIOD_SEC", "1.5")))
+    state_max_frames: int = field(default_factory=lambda: int(_env("STATE_MAX_FRAMES", "40")))
+    state_door_min_sec: float = field(default_factory=lambda: float(_env("STATE_DOOR_MIN_SEC", "4")))
+    state_away_min_sec: float = field(default_factory=lambda: float(_env("STATE_AWAY_MIN_SEC", "3")))
     # Extra JSON merged into every model request, e.g. {"chat_template_kwargs": {"enable_thinking": false}}.
     vlm_extra_body: str = field(default_factory=lambda: _env("VLM_EXTRA_BODY", ""))
 

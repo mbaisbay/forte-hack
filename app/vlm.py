@@ -96,7 +96,7 @@ class MockVLM:
     async def chat_json(self, parts: list[dict], schema: dict, max_tokens: int) -> dict:
         props = schema.get("properties", {})
         kind = ("verify" if "status" in props else "checklist" if "services" in props
-                else "recheck" if "answer" in props else "observe")
+                else "recheck" if "answer" in props else "states" if "rows" in props else "observe")
         self.calls.append(kind)
         return self.responder(kind, parts)
 

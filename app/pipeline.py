@@ -9,7 +9,7 @@ import logging
 import time
 from dataclasses import dataclass, field
 
-from app import checklist, recheck
+from app import checklist, recheck, states
 from app.config import Settings
 from app.media import DecodedVideo, Frame, b64
 from app.rules import RuleRegistry
@@ -201,9 +201,11 @@ async def run(video: DecodedVideo, vlm: VLM, reg: RuleRegistry, s: Settings, dea
     use_checklist = s.pipeline_mode in ("checklist", "both", "gated")
     windows = scan_windows(video, s) if use_windows else []
     # Any failed call fails the job: a silent gap must never turn into "no violation".
-    observed, checked_list = await asyncio.gather(
+    states_prompt = (s.prompts_dir / "states.txt").read_text(encoding="utf-8")
+    observed, checked_list, rows = await asyncio.gather(
         asyncio.gather(*(observe_window(vlm, w, video, reg, observe_prompt) for w in windows)),
         checklist.run_checklist(vlm, video, reg, s) if use_checklist else _no_checklist(),
+        states.timeline(vlm, video, states_prompt, s) if s.state_timeline else _no_rows(),
     )
     per_window = observed
     findings, cl_stats = checked_list
@@ -240,7 +242,18 @@ async def run(video: DecodedVideo, vlm: VLM, reg: RuleRegistry, s: Settings, dea
         scan_kept = [c for c in scan_kept
                      if any(f.rule_id == c.rule_id and c.start - s.gate_sec <= f.t <= c.end + s.gate_sec for f in findings)]
         stats["scan_kept_after_gate"] = len(scan_kept)
-    kept = merge(scan_kept + [from_finding(f, video) for f in findings], s.merge_gap_sec)
+    found = [from_finding(f, video) for f in findings]
+    if s.state_timeline:
+        # Door, leaving and cash-left come only from the state timeline (persistence rules), not from guesses.
+        scan_kept = [c for c in scan_kept if c.rule_id not in states.STATE_RULES]
+        found = [c for c in found if c.rule_id not in states.STATE_RULES]
+        st = [e for e in states.events_from(rows, s) if reg.get(e.rule_id)]
+        stats["state_rows"] = len(rows)
+        stats["state_events"] = [[e.rule_id, round(e.t, 1)] for e in st]
+        found += [Candidate(rule_id=e.rule_id, start=e.t, end=e.t, key_frame_id=e.frame_id, confidence=0.7,
+                            observation=e.observation, status="state",
+                            evidence_ids=_evidence_around(video, e.frame_id, e.t)) for e in st]
+    kept = merge(scan_kept + found, s.merge_gap_sec)
     stats["accepted"] = len(kept)
     return kept, stats
 
@@ -307,6 +320,10 @@ async def run_v2(video: DecodedVideo, vlm: VLM, reg: RuleRegistry, s: Settings, 
     stats["accepted"] = len(kept)
     stats["final_intervals"] = [[round(c.start, 1), round(c.end, 1), "supported"] for c in kept]
     return kept, stats
+
+
+async def _no_rows() -> list:
+    return []
 
 
 async def _no_checklist() -> tuple[list, dict]:
