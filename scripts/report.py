@@ -53,7 +53,7 @@ def mmss(t: float | None) -> str:
     return "—" if t is None else f"{int(t // 60)}:{t % 60:04.1f}"
 
 
-def timeline(duration: float, label_t: float | None, meta: dict, events: list[dict]) -> str:
+def timeline(duration: float, label_times: list[float], meta: dict, events: list[dict]) -> str:
     if duration <= 0:
         return ""
     pct = lambda t: f"{max(0.0, min(100.0, 100 * t / duration)):.2f}%"
@@ -64,19 +64,21 @@ def timeline(duration: float, label_t: float | None, meta: dict, events: list[di
         bars.append(f'<div class="iv st-{status}" style="left:{pct(s)};width:calc({pct(e - s)} + 2px)" title="pass 2 {status} {mmss(s)}–{mmss(e)}"></div>')
     for ev in events:
         bars.append(f'<div class="mark pred" style="left:{pct(ev["timecode_sec"])}" title="prediction {mmss(ev["timecode_sec"])}"></div>')
-    if label_t is not None:
-        bars.append(f'<div class="mark label" style="left:{pct(label_t)}" title="label {mmss(label_t)}"></div>')
+    for lt in label_times:
+        bars.append(f'<div class="mark label" style="left:{pct(lt)}" title="label {mmss(lt)}"></div>')
     return f'<div class="tl"><div class="row r1">{"".join(b for b in bars if "p1" in b)}</div><div class="row r2">{"".join(b for b in bars if "p1" not in b)}</div></div>'
 
 
 def card(clip: str, det: dict, video: Path, res: dict | None, meta: dict, duration: float) -> str:
     lab = det["label"]
+    times = lab.get("times") or ([lab["time"]] if lab.get("time") is not None else [])
+    codes = ", ".join(lab.get("codes", []))
     if det.get("verdict") is None:
         outcome = "FAILED"
     else:
         pred = det["verdict"] == "violation"
         outcome = ("TP" if lab["violation"] else "FP") if pred else ("FN" if lab["violation"] else "TN")
-    label_txt = f"нарушение в {mmss(lab['time'])}" if lab["violation"] else "без нарушения"
+    label_txt = (f"нарушение в {', '.join(mmss(t) for t in times)}" + (f" ({codes})" if codes else "")) if lab["violation"] else "без нарушения"
     pred_txt = {"violation": "нарушение", "no_violation": "без нарушения"}.get(det.get("verdict"), f"ошибка: {det.get('status')}")
     vid = f"v-{clip}"
     events = (res or {}).get("violations", [])
@@ -92,7 +94,7 @@ def card(clip: str, det: dict, video: Path, res: dict | None, meta: dict, durati
         )
     if not events:
         ev_html.append('<p class="none">Модель не выдала событий.</p>')
-    label_btn = f'<button class="tc lbl" data-v="{vid}" data-t="{lab["time"]}">к метке {mmss(lab["time"])}</button>' if lab["time"] is not None else ""
+    label_btn = "".join(f'<button class="tc lbl" data-v="{vid}" data-t="{t}">к метке {mmss(t)}</button>' for t in times)
     src = html.escape("../" + video.as_posix())
     return f"""
 <section class="clip" data-outcome="{outcome}">
@@ -101,7 +103,7 @@ def card(clip: str, det: dict, video: Path, res: dict | None, meta: dict, durati
     <span class="muted">{det.get("sec", "—")} с · кандидатов p1: {meta.get("raw_candidates", "—")}</span></header>
   <div class="body">
     <div class="left"><video id="{vid}" src="{src}" controls preload="metadata" muted></video>{label_btn}
-      {timeline(duration, lab["time"], meta, events)}</div>
+      {timeline(duration, times, meta, events)}</div>
     <div class="right">{"".join(ev_html)}</div>
   </div>
 </section>"""
@@ -159,6 +161,11 @@ def main() -> None:
     details = json.loads(args.details.read_text(encoding="utf-8"))
     clips = {norm_id(p.name): p for p in sorted(args.videos.glob("*.mov")) if norm_id(p.name) in details}
     results = latest_results(clips, args.data_dir)
+    for clip, det in details.items():
+        res_path = args.data_dir / "results" / f"{det.get('job_id')}.json"
+        if clip in clips and det.get("job_id") and res_path.exists():
+            meta = res_path.with_name(f"{res_path.stem}.meta.json")
+            results[clip] = (json.loads(res_path.read_text()), json.loads(meta.read_text()) if meta.exists() else {})
 
     order = {"FN": 0, "FP": 1, "FAILED": 2, "TP": 3, "TN": 4}
     cards, counts = [], {}

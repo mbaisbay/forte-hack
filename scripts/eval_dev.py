@@ -4,11 +4,10 @@ Per-clip details (which may describe competition footage) go to a local, git-ign
 for a teammate to inspect; they are never printed, so a cloud coding agent only sees numbers.
 
 Usage:
-  python scripts/eval_dev.py --videos open/videos --labels open/open_labels.xlsx [--subset dev|holdout|all]
+  python scripts/eval_dev.py --videos open/videos --labels open/labels_fixed.xlsx [--subset dev|holdout|all]
 """
 
 import argparse
-import hashlib
 import json
 import re
 import statistics
@@ -19,11 +18,6 @@ from pathlib import Path
 
 import httpx
 import openpyxl
-
-# Clips that look like the same recording (identical durations) share a split group.
-SAME_GROUP = {"X-47": "X-4", "X-48": "X-5"}
-HOLDOUT_SHARE = 0.25
-
 
 def norm_id(name: str) -> str:
     """'Х-17.mov' (Cyrillic) and 'X-17' (Latin) -> 'X-17'."""
@@ -43,27 +37,38 @@ def parse_time(text) -> float | None:
 
 
 def load_labels(path: Path) -> dict[str, dict]:
+    """One clip may have several rows (several violations); optional 4th column holds rule codes like '231.20.1, 231.12.1'."""
     ws = openpyxl.load_workbook(path, read_only=True).worksheets[0]
-    rows = list(ws.iter_rows(values_only=True))[1:]
-    labels = {}
-    for name, ts, verdict in rows:
+    labels: dict[str, dict] = {}
+    for row in list(ws.iter_rows(values_only=True))[1:]:
+        name, ts, verdict = row[:3]
         if not name:
             continue
-        is_violation = str(verdict).strip().lower().startswith("нарушение")
-        labels[norm_id(name)] = {"violation": is_violation, "time": parse_time(ts) if is_violation else None}
+        lab = labels.setdefault(norm_id(name), {"violation": False, "times": [], "codes": []})
+        if str(verdict).strip().lower().startswith("нарушение"):
+            lab["violation"] = True
+            lab["times"].append(parse_time(ts))
+            codes = row[3] if len(row) > 3 else None
+            lab["codes"] += [c.strip() for c in str(codes or "").split(",") if c.strip() and c.strip() not in lab["codes"]]
+    for lab in labels.values():
+        lab["times"] = sorted(t for t in lab["times"] if t is not None)
+        lab["time"] = lab["times"][0] if lab["times"] else None
     return labels
 
 
+# Frozen when the first labels arrived (stratified, same-recording clips kept together), so later
+# label fixes cannot move tuned-on clips into the holdout.
+HOLDOUT = {"X-3", "X-11", "X-14", "X-19", "X-24", "X-26", "X-33", "X-34", "X-35", "X-39"}
+
+
 def holdout_ids(labels: dict[str, dict]) -> set[str]:
-    """Deterministic split, stratified by label; clips of the same recording stay together."""
-    group = lambda i: SAME_GROUP.get(i, i)
-    rank = lambda g: hashlib.sha256(g.encode()).hexdigest()
-    out: set[str] = set()
-    for cls in (True, False):
-        groups = sorted({group(i) for i, v in labels.items() if v["violation"] == cls}, key=rank)
-        picked = set(groups[: round(HOLDOUT_SHARE * len(groups))])
-        out |= {i for i, v in labels.items() if v["violation"] == cls and group(i) in picked}
-    return out
+    return HOLDOUT & set(labels)
+
+
+def rule_codes(rules_path: Path) -> dict[str, set[str]]:
+    """Russian type name (as the API returns it) -> label codes it covers."""
+    rules = json.loads(rules_path.read_text(encoding="utf-8"))["rules"]
+    return {r["type_ru"]: set(r.get("codes", [])) for r in rules}
 
 
 def run_clip(base: str, key: str, path: Path, timeout: float) -> dict:
@@ -86,7 +91,8 @@ def run_clip(base: str, key: str, path: Path, timeout: float) -> dict:
 def main() -> None:
     ap = argparse.ArgumentParser()
     ap.add_argument("--videos", type=Path, default=Path("open/videos"))
-    ap.add_argument("--labels", type=Path, default=Path("open/open_labels.xlsx"))
+    ap.add_argument("--labels", type=Path, default=Path("open/labels_fixed.xlsx"))
+    ap.add_argument("--rules", type=Path, default=Path("config/rules.json"))
     ap.add_argument("--base", default="http://127.0.0.1:8080")
     ap.add_argument("--key", default=None, help="defaults to API_KEY from .env")
     ap.add_argument("--subset", choices=["dev", "holdout", "all"], default="dev")
@@ -102,6 +108,7 @@ def main() -> None:
         key = env["API_KEY"]
 
     labels = load_labels(args.labels)
+    codes_of = rule_codes(args.rules)
     clips = {norm_id(p.name): p for p in sorted(args.videos.glob("*.mov"))}
     missing = sorted(set(labels) - set(clips))
     holdout = holdout_ids(labels)
@@ -111,7 +118,8 @@ def main() -> None:
     with ThreadPoolExecutor(max_workers=args.parallel) as pool:
         outs = dict(zip(ids, pool.map(lambda i: run_clip(args.base, key, clips[i], 330), ids)))
 
-    tp = fp = tn = fn = failed = 0
+    tp = fp = tn = fn = failed = type_hit = 0
+    per_code: dict[str, list[int]] = {}  # code -> [clips, detected, detected with matching type]
     errs, secs, n_events = [], [], []
     details = {}
     diag: dict[str, list[dict]] = {}
@@ -133,9 +141,16 @@ def main() -> None:
             diag.setdefault(outcome, []).append(meta_by_clip[i])
         times = [v["timecode_sec"] for v in out["violations"]]
         n_events.append(len(times))
+        if lab["violation"]:
+            pred_codes = set().union(*(codes_of.get(v["type"], set()) for v in out["violations"]))
+            for code in lab["codes"]:
+                row = per_code.setdefault(code, [0, 0, 0])
+                row[0] += 1; row[1] += pred; row[2] += pred and code in pred_codes
         if pred and lab["violation"]:
             tp += 1
-            errs.append(min(abs(t - lab["time"]) for t in times))
+            type_hit += bool(pred_codes & set(lab["codes"]))
+            if lab["times"]:
+                errs.append(min(abs(t - lt) for t in times for lt in lab["times"]))
         elif pred:
             fp += 1
         elif lab["violation"]:
@@ -152,6 +167,10 @@ def main() -> None:
     print(f"subset={args.subset} clips={n} parallel={args.parallel} (labels without video: {len(missing)})")
     print(f"video-level: TP={tp} FP={fp} TN={tn} FN={fn} failed/timeout={failed}")
     print(f"accuracy={pct(tp + tn, n)} recall={pct(tp, tp + fn)} precision={pct(tp, tp + fp)}")
+    if tp:
+        print(f"type match on TP: {type_hit}/{tp} clips have a predicted type whose code is in the label")
+    for code, (n_c, det, typ) in sorted(per_code.items()):
+        print(f"  code {code}: clips={n_c} detected={det} right_type={typ}")
     if errs:
         print(f"timecode |error| on TP: median={statistics.median(errs):.1f}s max={max(errs):.1f}s "
               f"<=1s:{pct(sum(e <= 1 for e in errs), len(errs))} <=2s:{pct(sum(e <= 2 for e in errs), len(errs))} "
@@ -161,10 +180,10 @@ def main() -> None:
     if secs:
         print(f"end-to-end sec: median={statistics.median(secs):.0f} max={max(secs):.0f} over_300={sum(s > 300 for s in secs)}")
     near = lambda iv, t, pad=2.0: iv[0] - pad <= t <= iv[1] + pad
-    viol = [(m, labels[i]["time"]) for i, m in meta_by_clip.items() if labels[i]["violation"]]
+    viol = [(m, labels[i]["times"]) for i, m in meta_by_clip.items() if labels[i]["violation"] and labels[i]["times"]]
     if viol:
-        seen1 = sum(any(near(iv, t) for iv in m.get("pass1_intervals", [])) for m, t in viol)
-        kept = sum(any(near(iv, t) and iv[2] == "supported" for iv in m.get("final_intervals", [])) for m, t in viol)
+        seen1 = sum(any(near(iv, t) for iv in m.get("pass1_intervals", []) for t in ts) for m, ts in viol)
+        kept = sum(any(near(iv, t) and iv[2] == "supported" for iv in m.get("final_intervals", []) for t in ts) for m, ts in viol)
         print(f"label-time hit (±2s): pass-1 flagged near the label in {seen1}/{len(viol)} violation clips; "
               f"re-check confirmed near the label in {kept}/{len(viol)}")
     for outcome in ("TP", "FN", "FP", "TN"):
