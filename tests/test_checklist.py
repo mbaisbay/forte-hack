@@ -25,7 +25,8 @@ def _ids(parts):
 
 
 def service(ids, **over):
-    sv = {"start_frame_id": ids[0], "end_frame_id": ids[-1], "id_document_checked": "yes", "id_check_frame_id": ids[1],
+    sv = {"start_frame_id": ids[0], "end_frame_id": ids[-1], "customer_departed": "yes",
+          "id_document_checked": "yes", "id_check_frame_id": ids[1],
           "cash_first_touched_frame_id": ids[2], "amount_checked": "yes", "receipt_given": "yes", "cash_secured_after": "yes"}
     return {**sv, **over}
 
@@ -52,8 +53,19 @@ def test_missing_steps_map_to_rules(video):
            "cashier_leaves": [{"frame_id": ids[3], "customer_present": "yes", "cash_left_on_desk": "no", "computer_locked": "no"}],
            "flags": {**NO_FLAGS, "door_left_open": {"present": "yes", "frame_id": ids[4]}}}
     rules = {f.rule_id for f in checklist.findings_from(ans, frames, video)}
-    assert rules == {"no_client_identification", "no_confirmation_document", "leaves_during_service",
-                     "workstation_not_locked", "cash_room_door_open"}
+    # computer_locked and amount_checked are asked but not mapped (unreadable at this resolution).
+    assert rules == {"no_client_identification", "no_confirmation_document", "leaves_during_service", "cash_room_door_open"}
+
+
+def test_omissions_need_a_finished_service(video):
+    frames = checklist.segments(video, S, 0)[0]
+    ids = [f.frame_id for f in frames]
+    open_service = service(ids, customer_departed="unclear", receipt_given="no", cash_secured_after="no")
+    ans = {"services": [open_service], "cashier_leaves": [], "flags": NO_FLAGS}
+    assert checklist.findings_from(ans, frames, video) == []
+    # A following customer means the first service is over.
+    ans["services"].append(service(ids))
+    assert {f.rule_id for f in checklist.findings_from(ans, frames, video)} == {"no_confirmation_document", "cash_left_unsecured"}
 
 
 def test_id_checked_after_cash_counts_as_violation(video):
@@ -89,3 +101,27 @@ def test_pipeline_reports_checklist_finding(video):
     assert stats["checklist_kept"] == 1
     result = pipeline.build_result("job", events, video, REG)
     assert result.verdict == "violation" and 1 <= len(result.violations[0].evidence_frames) <= 3
+
+
+def test_gated_mode_drops_scan_events_without_checklist_support(video):
+    import dataclasses
+    from tests.test_pipeline import event_at
+    gated = dataclasses.replace(S, pipeline_mode="gated")
+    scan = event_at(4.0, rule_id="personal_items_in_cash_area")
+
+    def no_support(kind, parts):
+        if kind == "checklist":
+            return {"services": [], "cashier_leaves": [], "flags": NO_FLAGS}
+        return scan(kind, parts)
+    events, stats = asyncio.run(pipeline.run(video, MockVLM(no_support), REG, gated, time.monotonic() + 120))
+    assert events == [] and stats["scan_kept_after_gate"] == 0
+
+    def support(kind, parts):
+        if kind == "checklist":
+            ids = _ids(parts)
+            return {"services": [], "cashier_leaves": [],
+                    "flags": {**NO_FLAGS, "personal_items": {"present": "yes", "frame_id": ids[len(ids) // 2]}}}
+        return scan(kind, parts)
+    events, _ = asyncio.run(pipeline.run(video, MockVLM(support), REG, gated, time.monotonic() + 120))
+    assert [e.rule_id for e in events] == ["personal_items_in_cash_area"]
+    assert events[0].observation == "Тестовое наблюдение"  # scan text and time win over the template

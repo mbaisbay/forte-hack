@@ -45,13 +45,15 @@ class Settings:
     accept_unclear_conf: float = field(default_factory=lambda: float(_env("ACCEPT_UNCLEAR_CONF", "0.7")))
     max_verify_calls: int = field(default_factory=lambda: int(_env("MAX_VERIFY_CALLS", "12")))
 
-    # windows = scan + verify only; checklist = whole-clip checklist only; both = union.
+    # windows = scan + verify only; checklist = whole-clip checklist only; both = union;
+    # gated = checklist decides, a scan event survives only near a checklist finding of the same rule (sharper time/text).
     pipeline_mode: str = field(default_factory=lambda: _env("PIPELINE_MODE", "both"))
     checklist_fps: float = field(default_factory=lambda: float(_env("CHECKLIST_FPS", "2")))
     checklist_max_frames: int = field(default_factory=lambda: int(_env("CHECKLIST_MAX_FRAMES", "44")))
     checklist_segment_sec: float = field(default_factory=lambda: float(_env("CHECKLIST_SEGMENT_SEC", "60")))
     checklist_votes: int = field(default_factory=lambda: int(_env("CHECKLIST_VOTES", "2")))
     checklist_agree_sec: float = field(default_factory=lambda: float(_env("CHECKLIST_AGREE_SEC", "4")))
+    gate_sec: float = field(default_factory=lambda: float(_env("GATE_SEC", "10")))
 
     # Jury cutoff is 300 s end to end; keep margin for queueing and upload.
     job_budget_sec: float = field(default_factory=lambda: float(_env("JOB_BUDGET_SEC", "200")))

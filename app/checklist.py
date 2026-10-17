@@ -47,12 +47,12 @@ def checklist_schema() -> dict:
     service = {
         "type": "object",
         "properties": {
-            "start_frame_id": FID, "end_frame_id": FID,
+            "start_frame_id": FID, "end_frame_id": FID, "customer_departed": TRI,
             "id_document_checked": TRI, "id_check_frame_id": FID,
             "cash_first_touched_frame_id": FID,
             "amount_checked": TRI, "receipt_given": TRI, "cash_secured_after": TRI,
         },
-        "required": ["start_frame_id", "end_frame_id", "id_document_checked", "id_check_frame_id",
+        "required": ["start_frame_id", "end_frame_id", "customer_departed", "id_document_checked", "id_check_frame_id",
                      "cash_first_touched_frame_id", "amount_checked", "receipt_given", "cash_secured_after"],
     }
     leave = {
@@ -105,26 +105,29 @@ def findings_from(answer: dict, frames: list[Frame], video: DecodedVideo) -> lis
                 out.append(Finding(rule_id, at(fid).timestamp_sec, fid))
                 return
 
-    for sv in answer.get("services", []):
+    services = answer.get("services", [])
+    for k, sv in enumerate(services):
         cash, idf, end = sv.get("cash_first_touched_frame_id"), sv.get("id_check_frame_id"), sv.get("end_frame_id")
+        # Omissions (no receipt, cash not put away) can only be judged once the service is over in view:
+        # the customer left, or the next customer is being served.
+        finished = sv.get("customer_departed") == "yes" or k + 1 < len(services)
         if at(cash):
             late_id = at(idf) and at(idf).timestamp_sec > at(cash).timestamp_sec + 1.0
             if sv.get("id_document_checked") == "no" or late_id:
                 add("no_client_identification", cash)
-            if sv.get("amount_checked") == "no":
-                add("amount_not_reconciled", end, cash)
-            if sv.get("cash_secured_after") == "no":
+            if finished and sv.get("cash_secured_after") == "no":
                 add("cash_left_unsecured", end, cash)
-        if sv.get("receipt_given") == "no":
+        if finished and sv.get("receipt_given") == "no":
             add("no_confirmation_document", end)
+        # amount_checked is still asked (it anchors the model on the sequence) but not mapped: an 8B model at this
+        # resolution cannot see where the cashier looks (audit 2026-10-17: wrong in 18/19 reviewed answers).
     for lv in answer.get("cashier_leaves", []):
         fid = lv.get("frame_id")
         if lv.get("customer_present") == "yes":
             add("leaves_during_service", fid)
         if lv.get("cash_left_on_desk") == "yes":
             add("cash_left_unsecured", fid)
-        if lv.get("computer_locked") == "no":
-            add("workstation_not_locked", fid)
+        # computer_locked is not mapped: the laptop screen is too small to read a lock state (wrong in 11/12).
     for key, rule_id in FLAGS.items():
         flag = answer.get("flags", {}).get(key, {})
         if flag.get("present") == "yes":

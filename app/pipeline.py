@@ -192,8 +192,8 @@ async def run(video: DecodedVideo, vlm: VLM, reg: RuleRegistry, s: Settings, dea
     stats: dict = {}
 
     t0 = time.monotonic()
-    use_windows = s.pipeline_mode in ("windows", "both")
-    use_checklist = s.pipeline_mode in ("checklist", "both")
+    use_windows = s.pipeline_mode in ("windows", "both", "gated")
+    use_checklist = s.pipeline_mode in ("checklist", "both", "gated")
     windows = scan_windows(video, s) if use_windows else []
     # Any failed call fails the job: a silent gap must never turn into "no violation".
     observed, checked_list = await asyncio.gather(
@@ -230,7 +230,12 @@ async def run(video: DecodedVideo, vlm: VLM, reg: RuleRegistry, s: Settings, dea
     # Times and statuses only (no text), for count-based diagnostics in eval_dev.py.
     stats["pass1_intervals"] = [[round(c.start, 1), round(c.end, 1), round(c.confidence, 2)] for c in raw]
     stats["final_intervals"] = [[round(c.start, 1), round(c.end, 1), c.status] for c in final_pool]
-    kept = merge([c for c in final_pool if accepted(c, s)] + [from_finding(f, video) for f in findings], s.merge_gap_sec)
+    scan_kept = [c for c in final_pool if accepted(c, s)]
+    if s.pipeline_mode == "gated":
+        scan_kept = [c for c in scan_kept
+                     if any(f.rule_id == c.rule_id and c.start - s.gate_sec <= f.t <= c.end + s.gate_sec for f in findings)]
+        stats["scan_kept_after_gate"] = len(scan_kept)
+    kept = merge(scan_kept + [from_finding(f, video) for f in findings], s.merge_gap_sec)
     stats["accepted"] = len(kept)
     return kept, stats
 
