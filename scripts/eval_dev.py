@@ -171,6 +171,17 @@ def main() -> None:
         print(f"type match on TP: {type_hit}/{tp} clips have a predicted type whose code is in the label")
     for code, (n_c, det, typ) in sorted(per_code.items()):
         print(f"  code {code}: clips={n_c} detected={det} right_type={typ}")
+    by_type: dict[str, list[int]] = {}  # type -> [clean clips flagged, violation clips right code, violation clips other code]
+    for i, det in details.items():
+        for typ in {e["type"] for e in det.get("events", [])}:
+            row = by_type.setdefault(typ, [0, 0, 0])
+            lab = labels[i]
+            if not lab["violation"]:
+                row[0] += 1
+            else:
+                row[1 if codes_of.get(typ, set()) & set(lab["codes"]) else 2] += 1
+    for typ, (fl, ok, other) in sorted(by_type.items(), key=lambda kv: -kv[1][0]):
+        print(f"  type '{typ}': clean_flagged={fl} right={ok} other_violation={other}")
     if errs:
         print(f"timecode |error| on TP: median={statistics.median(errs):.1f}s max={max(errs):.1f}s "
               f"<=1s:{pct(sum(e <= 1 for e in errs), len(errs))} <=2s:{pct(sum(e <= 2 for e in errs), len(errs))} "

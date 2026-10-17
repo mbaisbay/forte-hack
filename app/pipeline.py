@@ -9,6 +9,7 @@ import logging
 import time
 from dataclasses import dataclass, field
 
+from app import checklist
 from app.config import Settings
 from app.media import DecodedVideo, Frame, b64
 from app.rules import RuleRegistry
@@ -176,6 +177,8 @@ async def verify(vlm: VLM, c: Candidate, video: DecodedVideo, reg: RuleRegistry,
 def accepted(c: Candidate, s: Settings) -> bool:
     if c.status == "supported":
         return c.confidence >= s.accept_supported_conf
+    if c.status == "checklist":  # already agreed by independent checklist votes
+        return True
     if c.status == "unclear":
         return c.confidence >= s.accept_unclear_conf
     if c.status == "proposed":  # pass 2 skipped for time: keep only confident first-pass findings
@@ -189,9 +192,17 @@ async def run(video: DecodedVideo, vlm: VLM, reg: RuleRegistry, s: Settings, dea
     stats: dict = {}
 
     t0 = time.monotonic()
-    windows = scan_windows(video, s)
-    # Any failed window fails the job: a silent gap must never turn into "no violation".
-    per_window = await asyncio.gather(*(observe_window(vlm, w, video, reg, observe_prompt) for w in windows))
+    use_windows = s.pipeline_mode in ("windows", "both")
+    use_checklist = s.pipeline_mode in ("checklist", "both")
+    windows = scan_windows(video, s) if use_windows else []
+    # Any failed call fails the job: a silent gap must never turn into "no violation".
+    observed, checked_list = await asyncio.gather(
+        asyncio.gather(*(observe_window(vlm, w, video, reg, observe_prompt) for w in windows)),
+        checklist.run_checklist(vlm, video, reg, s) if use_checklist else _no_checklist(),
+    )
+    per_window = observed
+    findings, cl_stats = checked_list
+    stats.update(cl_stats)
     raw = [c for cs in per_window for c in cs if c.confidence >= s.candidate_min_conf]
     cands = merge(raw, s.merge_gap_sec)
     stats.update(windows=len(windows), raw_candidates=len(raw), merged_candidates=len(cands),
@@ -219,9 +230,22 @@ async def run(video: DecodedVideo, vlm: VLM, reg: RuleRegistry, s: Settings, dea
     # Times and statuses only (no text), for count-based diagnostics in eval_dev.py.
     stats["pass1_intervals"] = [[round(c.start, 1), round(c.end, 1), round(c.confidence, 2)] for c in raw]
     stats["final_intervals"] = [[round(c.start, 1), round(c.end, 1), c.status] for c in final_pool]
-    kept = merge([c for c in final_pool if accepted(c, s)], s.merge_gap_sec)
+    kept = merge([c for c in final_pool if accepted(c, s)] + [from_finding(f, video) for f in findings], s.merge_gap_sec)
     stats["accepted"] = len(kept)
     return kept, stats
+
+
+async def _no_checklist() -> tuple[list, dict]:
+    return [], {}
+
+
+def from_finding(f: "checklist.Finding", video: DecodedVideo) -> Candidate:
+    near = video.between(f.t - 1.0, f.t + 1.0)
+    picks = [near[0], video.by_id(f.frame_id), near[-1]] if near else [video.by_id(f.frame_id)]
+    ids = list(dict.fromkeys(fr.frame_id for fr in picks if fr))
+    # Below typical verified confidence, so a merged scan observation (model text) wins over the template.
+    return Candidate(rule_id=f.rule_id, start=f.t, end=f.t, key_frame_id=f.frame_id, confidence=0.6,
+                     observation=checklist.OBS_RU[f.rule_id], status="checklist", evidence_ids=ids)
 
 
 def build_result(job_id: str, events: list[Candidate], video: DecodedVideo, reg: RuleRegistry) -> JobResult:
