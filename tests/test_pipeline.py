@@ -24,7 +24,7 @@ def _ts(parts):
             for m in [re.match(r"^(F\d{4}) t=([\d.]+)s", p["text"])] if m}
 
 
-def event_at(second: float, rule_id="cash_unattended", conf=0.9, status="supported"):
+def event_at(second: float, rule_id="leaves_during_service", conf=0.9, status="supported"):
     """Mock that 'sees' one event at a fixed time, in every window and verify call covering it."""
     def responder(kind, parts):
         ts = _ts(parts)
@@ -74,7 +74,7 @@ def test_event_in_overlap_is_reported_once(video):
     assert 1 <= len(v.evidence_frames) <= 3
     for ef in v.evidence_frames:
         assert base64.b64decode(ef.image_base64)[:2] == b"\xff\xd8"
-    assert REG.get("cash_unattended").type_ru == v.type
+    assert REG.get("leaves_during_service").type_ru == v.type
 
 
 def test_not_supported_is_dropped(video):
@@ -84,7 +84,7 @@ def test_not_supported_is_dropped(video):
 
 def test_hallucinated_frame_ids_are_ignored(video):
     def responder(kind, parts):
-        return {"events": [{"rule_id": "cash_unattended", "start_frame_id": "F9999", "end_frame_id": "F9999",
+        return {"events": [{"rule_id": "leaves_during_service", "start_frame_id": "F9999", "end_frame_id": "F9999",
                             "key_frame_id": "F9999", "observation": "x", "confidence": 0.99}]}
     events, stats = run(video, MockVLM(responder))
     assert stats["raw_candidates"] == 0 and events == []

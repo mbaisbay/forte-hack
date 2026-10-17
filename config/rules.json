@@ -1,33 +1,141 @@
 {
-  "_note": "DRAFT categories so the pipeline runs end to end. Replace with the teammate's violation types and reviewed sources from research/regulations.md. 'verified': true only after a human has read the source.",
-  "version": "draft-0",
+  "_note": "DRAFT-1. Categories come from research/regulations.md (public KZ acts, quotes copied 2026-10-17). Confirm against the teammate's violation-type list, prune what never appears, and set verified=true only after a human has read the quoted point on adilet.",
+  "version": "draft-1",
   "rules": [
     {
-      "rule_id": "cash_unattended",
+      "rule_id": "leaves_during_service",
       "enabled": true,
       "verified": false,
-      "type_ru": "Наличные оставлены без присмотра",
-      "visual_cue": "Cash or an open cash drawer is left on the desk while the cashier walks away or turns away from the workstation.",
-      "not_a_violation": "Cashier briefly reaches for something within arm's length; cash is locked or covered.",
-      "source": {"title": null, "section": null, "url": null, "quote": null}
+      "type_ru": "Кассир покинул рабочее место во время обслуживания клиента",
+      "visual_cue": "The cashier gets up and leaves the workstation or the frame while a customer is still at the window or cash is still on the desk.",
+      "not_a_violation": "Cashier leaves after the customer has gone and the desk is clear; brief reach within the workstation.",
+      "source": {
+        "title": "Правила осуществления кассовых операций и операций по инкассации банкнот, монет и ценностей в банках второго уровня… (постановление Правления НБРК от 29.11.2019 № 231)",
+        "section": "п. 22",
+        "url": "https://adilet.zan.kz/rus/docs/V1900019680",
+        "quote": "Кассовому работнику не допускается покидать рабочее место до окончания обслуживания клиента.",
+        "short_title": "Правила кассовых операций и инкассации (пост. Правления НБРК от 29.11.2019 № 231)"
+      }
     },
     {
-      "rule_id": "unauthorized_person",
+      "rule_id": "count_not_in_client_view",
       "enabled": true,
       "verified": false,
-      "type_ru": "Посторонний в кассовой зоне",
-      "visual_cue": "A person who is not the cashier enters the cashier's side of the desk or touches cash there.",
-      "not_a_violation": "A customer stays on the customer side of the window; cash collectors in a handover.",
-      "source": {"title": null, "section": null, "url": null, "quote": null}
+      "type_ru": "Пересчёт наличных не в присутствии клиента",
+      "visual_cue": "Cash received from or paid to a customer is counted after the customer has left, or out of the customer's view (below the counter, turned away, in another area), or handed to the customer with no visible recount.",
+      "not_a_violation": "Counting at the window while the customer is present; handing over an intact banded bank pack without recount.",
+      "source": {
+        "title": "Правила осуществления кассовых операций и операций по инкассации банкнот, монет и ценностей в банках второго уровня… (постановление Правления НБРК от 29.11.2019 № 231)",
+        "section": "п. 20 ч. 1; п. 31 пп. 4) (исключение — п. 32)",
+        "url": "https://adilet.zan.kz/rus/docs/V1900019680",
+        "quote": "Наличные деньги принимаются и пересчитываются кассовым работником в присутствии клиента.",
+        "short_title": "Правила кассовых операций и инкассации (пост. Правления НБРК от 29.11.2019 № 231)"
+      }
+    },
+    {
+      "rule_id": "cash_left_on_desk",
+      "enabled": true,
+      "verified": false,
+      "type_ru": "Наличные оставлены на рабочем месте вне закрываемого хранилища",
+      "visual_cue": "Cash from earlier operations stays on the desk while another customer is served or nobody is at the workstation; cash drawer or safe left open and unattended.",
+      "not_a_violation": "Only the current customer's cash is on the desk during their service; drawer opened briefly to take or put cash.",
+      "source": {
+        "title": "Правила осуществления кассовых операций и операций по инкассации банкнот, монет и ценностей в банках второго уровня… (постановление Правления НБРК от 29.11.2019 № 231)",
+        "section": "п. 20 ч. 2",
+        "url": "https://adilet.zan.kz/rus/docs/V1900019680",
+        "quote": "На рабочем месте кассового работника находятся наличные деньги клиента. Все ранее принятые наличные деньги хранятся в специальных устройствах … закрывающихся на ключ…",
+        "short_title": "Правила кассовых операций и инкассации (пост. Правления НБРК от 29.11.2019 № 231)"
+      }
+    },
+    {
+      "rule_id": "count_without_controller",
+      "enabled": true,
+      "verified": false,
+      "type_ru": "Пересчёт или упаковка наличных без контролирующего работника",
+      "visual_cue": "With no customer at the window, one person alone does bulk counting, sorting, banding or packing of cash, and no second employee is present.",
+      "not_a_violation": "Counting while serving a customer; a second employee is present and watching.",
+      "source": {
+        "title": "Правила осуществления кассовых операций и операций по инкассации банкнот, монет и ценностей в банках второго уровня… (постановление Правления НБРК от 29.11.2019 № 231)",
+        "section": "п. 42",
+        "url": "https://adilet.zan.kz/rus/docs/V1900019680",
+        "quote": "Кассовые операции по пересчету, сортировке и упаковке наличных денег осуществляются кассовым работником в присутствии контролирующего работника, за исключением случаев совершения кассовых операций по приему и выдаче наличных денег клиенту.",
+        "short_title": "Правила кассовых операций и инкассации (пост. Правления НБРК от 29.11.2019 № 231)"
+      }
+    },
+    {
+      "rule_id": "personal_items_in_cash_area",
+      "enabled": true,
+      "verified": false,
+      "type_ru": "Личные вещи или телефон в кассовой зоне",
+      "visual_cue": "A mobile phone, bag, wallet or other personal item is on the cashier's desk or used by the cashier at the workstation.",
+      "not_a_violation": "Work equipment: bank terminal, counting machine, detector, calculator, documents, desk phone.",
+      "source": {
+        "title": "Правила осуществления кассовых операций и операций по инкассации банкнот, монет и ценностей в банках второго уровня… (постановление Правления НБРК от 29.11.2019 № 231)",
+        "section": "п. 12",
+        "url": "https://adilet.zan.kz/rus/docs/V1900019680",
+        "quote": "Хранение личных вещей, наличных денег и ценностей работников банка осуществляется вне кассового узла… Допускается внос … средств связи, не имеющих функции фото и видео фиксации.",
+        "short_title": "Правила кассовых операций и инкассации (пост. Правления НБРК от 29.11.2019 № 231)"
+      }
+    },
+    {
+      "rule_id": "collection_bag_not_checked",
+      "enabled": true,
+      "verified": false,
+      "type_ru": "Сумка инкассаторов принята без проверки целостности и пломбы",
+      "visual_cue": "During a handover with cash collectors, a cash bag, case or container is taken or handed over without visibly inspecting the bag and its seal; or a bag is opened without the collector present.",
+      "not_a_violation": "The cashier visibly inspects the bag and seal before accepting it.",
+      "source": {
+        "title": "Правила осуществления кассовых операций и операций по инкассации банкнот, монет и ценностей в банках второго уровня… (постановление Правления НБРК от 29.11.2019 № 231)",
+        "section": "п. 24 пп. 3)–4); п. 25",
+        "url": "https://adilet.zan.kz/rus/docs/V1900019680",
+        "quote": "3) проверяет целостность сумки; 4) проверяет правильность пломбирования сумки.",
+        "short_title": "Правила кассовых операций и инкассации (пост. Правления НБРК от 29.11.2019 № 231)"
+      }
+    },
+    {
+      "rule_id": "cash_bypasses_tray",
+      "enabled": true,
+      "verified": false,
+      "type_ru": "Передача наличных в обход защитного окна / лотка",
+      "visual_cue": "Cash or valuables are passed over the counter, around the protective screen, or through a door instead of through the cash transfer tray or window.",
+      "not_a_violation": "Cash passed through the tray or window opening intended for it.",
+      "source": {
+        "title": "Правила организации охраны и устройства помещений банков второго уровня… (постановление Правления НБРК от 24.02.2020 № 14)",
+        "section": "п. 16 пп. 3)–4) (в редакции, действующей до 01.01.2027)",
+        "url": "https://adilet.zan.kz/rus/docs/V2000020075",
+        "quote": "передняя часть кассы оборудуется специальными транспортирующими устройствами для передачи наличных денег и ценностей.",
+        "short_title": "Правила охраны и устройства помещений банков (пост. Правления НБРК от 24.02.2020 № 14)"
+      }
+    },
+    {
+      "rule_id": "camera_obstructed",
+      "enabled": true,
+      "verified": false,
+      "type_ru": "Обзор камеры видеонаблюдения перекрыт",
+      "visual_cue": "The camera view of the workstation is deliberately covered or blocked by an object or hand for a noticeable time.",
+      "not_a_violation": "A person briefly passes under the camera.",
+      "source": {
+        "title": "Правила организации охраны и устройства помещений банков второго уровня… (постановление Правления НБРК от 24.02.2020 № 14)",
+        "section": "п. 16 пп. 6) (в редакции, действующей до 01.01.2027)",
+        "url": "https://adilet.zan.kz/rus/docs/V2000020075",
+        "quote": "касса оборудуется видеокамерами системы видеонаблюдения",
+        "short_title": "Правила охраны и устройства помещений банков (пост. Правления НБРК от 24.02.2020 № 14)"
+      }
     },
     {
       "rule_id": "other_suspicious",
       "enabled": true,
       "verified": false,
-      "type_ru": "Иное нарушение порядка работы с наличными",
-      "visual_cue": "Any other clearly visible handling of cash, valuables, or the workstation that departs from careful cash procedure.",
-      "not_a_violation": "Normal counting, serving a customer, typing, routine movement.",
-      "source": {"title": null, "section": null, "url": null, "quote": null}
+      "type_ru": "Иное отклонение от порядка работы с наличными",
+      "visual_cue": "Any other clearly visible handling of cash or valuables that departs from careful cash procedure and fits none of the entries above.",
+      "not_a_violation": "Normal counting while serving a customer, typing, routine movement.",
+      "source": {
+        "title": "Правила осуществления кассовых операций и операций по инкассации банкнот, монет и ценностей в банках второго уровня… (постановление Правления НБРК от 29.11.2019 № 231)",
+        "section": null,
+        "url": "https://adilet.zan.kz/rus/docs/V1900019680",
+        "quote": null,
+        "short_title": "Правила кассовых операций и инкассации (пост. Правления НБРК от 29.11.2019 № 231)"
+      }
     }
   ]
 }

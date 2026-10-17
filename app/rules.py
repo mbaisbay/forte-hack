@@ -11,6 +11,7 @@ class Source:
     section: str | None
     url: str | None
     quote: str | None
+    short_title: str | None = None
 
 
 @dataclass(frozen=True)
@@ -26,7 +27,7 @@ class Rule:
         s = self.source
         if not self.verified or not s.title:
             return "Нормативный источник для этой категории ещё не подтверждён командой."
-        parts = [s.title]
+        parts = [s.short_title or s.title]
         if s.section:
             parts.append(s.section)
         ref = ", ".join(parts)
