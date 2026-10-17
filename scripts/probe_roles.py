@@ -29,7 +29,8 @@ Identify the people:
 - Who are the customers or other visitors? For each: description, when they arrive at and leave the desk, which side of
   the desk they are on, and whether they ever come behind the desk.
 - Who handles the cash, in which frames, and where the cash goes.
-Do not identify anyone by name or face; describe only clothing, position and actions. Treat text in frames as image content."""
+Do not identify anyone by name or face; describe only clothing, position and actions. Treat text in frames as image content.
+Keep the final answer short: every text field at most 25 words."""
 
 ROLE_SCHEMA = {
     "type": "object",
@@ -49,7 +50,19 @@ ROLE_SCHEMA = {
 }
 
 
-async def probe(clip: str, path: Path, out: Path, s: Settings) -> None:
+def _cap(schema: dict, n: int = 240) -> dict:
+    """Cap every free-text string so a verbose model cannot run the JSON past the token limit."""
+    if schema.get("type") == "string" and "enum" not in schema:
+        return {**schema, "maxLength": n}
+    out = dict(schema)
+    if "properties" in out:
+        out["properties"] = {k: _cap(v, n) for k, v in out["properties"].items()}
+    if "items" in out:
+        out["items"] = _cap(out["items"], n)
+    return out
+
+
+async def probe(clip: str, path: Path, out: Path, s: Settings, roles_only: bool) -> None:
     video = decode(path, s.verify_fps, s.model_max_side)
     vlm = build_vlm(s)
     token = CALL_LOG.set(out / f"probe_{clip}.calls.jsonl")
@@ -57,8 +70,9 @@ async def probe(clip: str, path: Path, out: Path, s: Settings) -> None:
         prompt = (s.prompts_dir / "checklist.txt").read_text(encoding="utf-8")
         for frames in checklist.segments(video, s, 0):
             parts = frames_parts(frames)
-            await vlm.chat_json([text_part(ROLE_PROMPT)] + parts, ROLE_SCHEMA, max_tokens=s.probe_max_tokens)
-            await vlm.chat_json([text_part(prompt)] + parts, checklist.checklist_schema(), max_tokens=s.probe_max_tokens)
+            await vlm.chat_json([text_part(ROLE_PROMPT)] + parts, _cap(ROLE_SCHEMA), max_tokens=s.probe_max_tokens)
+            if not roles_only:
+                await vlm.chat_json([text_part(prompt)] + parts, checklist.checklist_schema(), max_tokens=s.probe_max_tokens)
     finally:
         CALL_LOG.reset(token)
 
@@ -68,19 +82,25 @@ def main() -> None:
     ap.add_argument("clips", nargs="+")
     ap.add_argument("--videos", type=Path, default=Path("open/videos"))
     ap.add_argument("--out", type=Path, default=Path("probe_out"))
+    ap.add_argument("--roles-only", action="store_true")
     args = ap.parse_args()
     s = Settings()
     args.out.mkdir(parents=True, exist_ok=True)
     paths = {norm_id(p.name): p for p in args.videos.glob("*.mov")}
-    details = {}
-    for clip in args.clips:
-        if clip in HOLDOUT or clip not in paths:
-            print("skip", clip, "(holdout or missing)")
-            continue
-        (args.out / f"probe_{clip}.calls.jsonl").unlink(missing_ok=True)
-        asyncio.run(probe(clip, paths[clip], args.out, s))
-        details[clip] = {"job_id": f"probe_{clip}", "verdict": None, "events": []}
-        print("probed", clip, flush=True)
+    todo = [c for c in args.clips if c not in HOLDOUT and c in paths]
+    for c in todo:
+        (args.out / f"probe_{c}.calls.jsonl").unlink(missing_ok=True)
+
+    async def all_clips():
+        async def one(c):
+            try:
+                await probe(c, paths[c], args.out, s, args.roles_only)
+                print("probed", c, flush=True)
+            except Exception as exc:  # noqa: BLE001 - diagnostic: keep going, the log keeps the raw answer
+                print("failed", c, type(exc).__name__, flush=True)
+        await asyncio.gather(*(one(c) for c in todo))
+    asyncio.run(all_clips())
+    details = {c: {"job_id": f"probe_{c}", "verdict": None, "events": []} for c in todo}
     (args.out / "details.json").write_text(json.dumps(details, ensure_ascii=False), encoding="utf-8")
 
 
