@@ -142,7 +142,7 @@ def main() -> None:
             fn += 1
         else:
             tn += 1
-        details[i] = {"label": lab, "verdict": out["verdict"], "sec": round(out["sec"], 1),
+        details[i] = {"label": lab, "job_id": out["job_id"], "verdict": out["verdict"], "sec": round(out["sec"], 1),
                       "events": [{"type": v["type"], "t": v["timecode_sec"], "description": v["description"]} for v in out["violations"]]}
 
     args.details.write_text(json.dumps(details, ensure_ascii=False, indent=2), encoding="utf-8")
