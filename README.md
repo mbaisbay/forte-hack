@@ -1,29 +1,33 @@
-# Cash desk video review (ForteBank Datathon 26)
+# Проверка видео кассового места (ForteBank Datathon 26)
 
-Local AI service that reviews overhead video of a cashier workstation and flags visible signs of
-possible cash-discipline violations, with timestamps, original evidence frames, and the regulation
-each finding relates to. All inference runs on the team's GPU. No cloud AI is called.
+Локальный сервис: принимает видео с верхней камеры над рабочим местом кассира и отмечает видимые признаки
+возможных нарушений кассовой дисциплины — с таймкодом, кадрами-доказательствами и ссылкой на норму.
+Все модели работают на GPU команды; облачные AI-сервисы при обработке не используются.
 
-The result is a hint for a human reviewer, not a legal or disciplinary conclusion.
+Результат — подсказка для проверяющего, а не юридическое или дисциплинарное заключение.
+Ограничения и измеренные ошибки: [LIMITATIONS.md](LIMITATIONS.md).
 
-## Architecture
+## Как это работает
 
 ```
-Browser UI ─┐                       ┌─ SQLite job queue ─ worker process ─┐
-Jury client ─┴─ FastAPI (port 8080) ┘                                     │
-                                         PyAV decode (real timestamps, 6 fps grid)
-                                         Pass 1: 10 s windows @ 2 fps ──► local VLM (vLLM, 127.0.0.1:8000)
-                                         merge duplicates across windows
-                                         Pass 2: denser re-check of each candidate ──► local VLM
-                                         regulation text from config/rules.json (never from the model)
-                                         evidence = original-resolution JPEG frames
+Браузер (UI) ─┐                         ┌─ очередь заданий (SQLite) ─ воркер (2 задания параллельно) ─┐
+Жюри (API) ───┴─ FastAPI, 127.0.0.1:8080 ┘                                                            │
+                     декодирование PyAV: реальные таймкоды, сетка 6 кадров/с                          │
+                     ├─ проход «скан»: окна 10 с по 2 кадра/с → кандидаты из каталога правил          │
+                     │    └─ перепроверка каждого кандидата на 6 кадрах/с (±3 с)                      │
+                     ├─ проход «чек-лист»: весь ролик, модель заполняет фиксированный чек-лист          │
+                     │    (клиенты, документ до наличных, квитанция, уход кассира, дверь, сейф …);    │
+                     │    код переводит ответы в правила; два прохода со сдвигом кадров должны совпасть│
+                     └─ объединение → вердикт, события, 1–3 кадра-доказательства в исходном разрешении │
+   локальная VLM: Qwen3-VL-8B-Instruct в vLLM, только loopback (127.0.0.1:8000) ──────────────────────┘
 ```
 
-- Model: `Qwen/Qwen3-VL-8B-Instruct` (Apache-2.0), served by vLLM on loopback only.
-- The VLM client refuses any non-loopback URL (`app/vlm.py`).
-- Any model failure marks the job `failed`; it never becomes a silent `no_violation`.
+- Текст нормы и ссылка берутся только из `config/rules.json`, никогда из ответа модели.
+- Модель видит только кадры; аудио не используется, лица не распознаются.
+- Сбой модели помечает задание `failed`; он никогда не превращается в «нарушений нет».
+- Клиент модели отказывается работать с не-локальным адресом (`app/vlm.py`).
 
-## API (for the jury)
+## API для жюри
 
 ```bash
 curl -X POST https://<host>/api/v1/analyze -H "X-API-Key: <key>" -F "file=@video.mov"
@@ -33,38 +37,60 @@ curl https://<host>/api/v1/jobs/<job_id> -H "X-API-Key: <key>"
 #    {"job_id","status":"done","verdict":"violation"|"no_violation","violations":[...]}
 ```
 
-Each violation: `type`, `timecode_sec`, `description` (what is visible, why it may be a violation,
-regulation reference), `evidence_frames` (1–3 JPEG, base64).
+Каждое нарушение: `type`, `timecode_sec`, `description` (что видно, почему это может быть нарушением, норма и её
+трактовка), `evidence_frames` (1–3 JPEG в base64; кадр с таймкодом всегда среди них).
+Запросы без верного `X-API-Key` получают 401.
 
-## Run on the GPU machine
+Веб-интерфейс: `https://<host>/?code=<код доступа>` — загрузка видео, статус, вердикт, кликабельные таймкоды,
+кадры-доказательства. Код доступа защищает GPU от посторонних; API жюри работает только по ключу.
+
+## Запуск на GPU-машине
 
 ```bash
-./scripts/setup_5090.sh                 # once, needs internet: venvs, vLLM, model weights
-cp .env.example .env && nano .env       # set API_KEY
-./scripts/serve_vlm.sh                  # terminal 1: model server (offline from here on)
-./scripts/run.sh                        # terminal 2: API + worker on 127.0.0.1:8080
-cloudflared tunnel --url http://127.0.0.1:8080   # terminal 3: public URL
+./scripts/setup_5090.sh                       # один раз, нужен интернет: окружения, vLLM, веса модели
+cp .env.example .env && nano .env             # API_KEY, UI_ACCESS_CODE
+./scripts/start_vllm_8b.sh                    # терминал 1: сервер модели (дальше интернет не нужен)
+./scripts/run.sh                              # терминал 2: API + воркер на 127.0.0.1:8080
+ngrok http --url=https://<домен> 8080         # терминал 3: публичный адрес
 ```
 
-Shared GPU: `GPU_UTIL` (default 0.85) is the share of total VRAM vLLM takes and must be free at start.
+Переменные окружения (значения по умолчанию в `app/config.py`): `PIPELINE_MODE=both`, `WORKER_THREADS=2`,
+`MAX_UPLOAD_MB=500`, `JOB_BUDGET_SEC=200`. Переменные окружения имеют приоритет над `.env`.
 
-## Develop and test (no GPU)
+## Разработка и тесты (без GPU)
 
 ```bash
 uv sync
-uv run pytest          # synthetic video only, mock model
+uv run pytest            # синтетическое видео и mock-модель, 57 тестов
 ```
 
-## Evaluate on dev clips
+## Оценка на размеченных роликах
 
 ```bash
-.venv/bin/python scripts/eval_dev.py --subset dev        # prints aggregate metrics only
-.venv/bin/python scripts/eval_dev.py --subset holdout    # use sparingly, after changes settle
+.venv/bin/python scripts/eval_dev.py --subset dev       # 32 ролика разработки
+.venv/bin/python scripts/eval_dev.py --subset holdout   # 10 отложенных роликов, только для финальной проверки
 ```
 
-Per-clip details go to `eval_details.json` (git-ignored) for local inspection.
+Печатаются агрегаты: вердикт по видео, полнота, точность, сопоставление событий один-к-одному (тот же код,
+±5 с), ложные события на чистых роликах, таймкоды, время обработки.
 
-## Data handling
+## Что пробовали (кратко)
 
-Competition videos, frames, model outputs and per-clip results stay on the team's machines and are
-not committed (`.gitignore`). Delete `data/` and `open/` after the hackathon.
+| Вариант | Итог на 32 роликах разработки |
+|---|---|
+| Qwen3-VL-8B, скан + чек-лист (**в продакшене**) | точность вердикта 62%, полнота 83% |
+| Qwen3-VL-32B (AWQ) | верный тип в 13 из 13 найденных, но полнота 72% и в 3 раза медленнее |
+| MiniCPM-V 4.5 | хуже на тех же кадрах: меньше верных ответов, больше ложных флагов |
+| Узкие да/нет-перепроверки на 8B | модель отвечает «нет» почти на всё — отклонено |
+| Таймлайн состояний сцены (дверь, сейф, наличные) | меньше ложных срабатываний, но теряет верные типы — отклонено |
+
+## Лицензии
+
+Qwen3-VL-8B-Instruct — Apache-2.0; vLLM — Apache-2.0; FastAPI, Pydantic, openpyxl — MIT; Uvicorn, httpx, PyAV — BSD;
+Pillow — MIT-CMU (HPND). Все допускают коммерческое использование. ngrok используется только как туннель
+для публичного адреса и не участвует в обработке.
+
+## Данные
+
+Видео, кадры, ответы модели и результаты по роликам остаются на машинах команды и не коммитятся (`.gitignore`).
+`data/`, `open/` и экспорт аудита удаляются после хакатона.
