@@ -1,6 +1,6 @@
 {
   "_note": "v2. Types and codes come from the team's catalogue (Каталог правил, Datathon 26, 17.10.2026) and labels_fixed.xlsx. 'codes' are the label codes <act>.<point>.<subpoint>. verified=true means the quote was checked against the team catalogue; 53.26.1 cites ARDFM № 53 (03.04.2026) п.26 пп.1 plus п.71 пп.9, accepted by the team on 17.10.2026. v2.1 (17.10.2026): added interpretation_ru where the clause is applied by analogy or only sets a general duty (critic review).",
-  "version": "v2.1",
+  "version": "v2.2",
   "rules": [
     {
       "rule_id": "no_client_identification",
@@ -100,8 +100,8 @@
       "enabled": true,
       "verified": true,
       "type_ru": "Кассир покинул рабочее место до окончания обслуживания клиента",
-      "visual_cue": "The cashier gets up and leaves the workstation or the frame while a customer is still being served or the customer's cash is still on the desk.",
-      "not_a_violation": "The cashier leaves after the customer has gone and the desk is clear; a brief reach within the workstation.",
+      "visual_cue": "The cashier walks away from the workstation while a customer is still at the window being served, or while that customer's cash is still on the desk.",
+      "not_a_violation": "The cashier leaves when no customer is present (for example after finishing work), stands up, or reaches to a cabinet within the workstation.",
       "source": {
         "title": "Правила осуществления кассовых операций и операций по инкассации банкнот, монет и ценностей в банках второго уровня… (постановление Правления НБРК от 29.11.2019 № 231)",
         "short_title": "Правила кассовых операций и инкассации (пост. Правления НБРК от 29.11.2019 № 231)",
@@ -118,8 +118,8 @@
       "enabled": true,
       "verified": true,
       "type_ru": "Личные вещи в кассовой зоне",
-      "visual_cue": "Personal belongings are on the cashier's desk or used at the workstation: a handbag, wallet, personal mobile phone (phones with a camera are not allowed), cup of coffee, food or drink.",
-      "not_a_violation": "Work equipment: computer, keyboard, counting machine, detector, stamp, documents, desk phone.",
+      "visual_cue": "A clearly identifiable personal object lies on the cashier's desk or is used at it: a handbag, wallet, coat, personal mobile phone, cup or glass, food or drink, a magazine.",
+      "not_a_violation": "Banknotes, banded cash, papers and documents, stamps, small office containers, a corded desk phone, the counting machine, detector, calculator, computer, a tablet used for work. If you cannot tell what the object is, it is not a violation.",
       "source": {
         "title": "Правила осуществления кассовых операций и операций по инкассации банкнот, монет и ценностей в банках второго уровня… (постановление Правления НБРК от 29.11.2019 № 231)",
         "short_title": "Правила кассовых операций и инкассации (пост. Правления НБРК от 29.11.2019 № 231)",
@@ -138,7 +138,7 @@
       "verified": true,
       "type_ru": "Инкассаторская сумка принята без проверки целостности",
       "visual_cue": "A cash collection bag, case or container is accepted from a collector, or opened, without the cashier visibly inspecting the bag and its seal first.",
-      "not_a_violation": "The cashier turns the bag over and inspects it and the seal before accepting it.",
+      "not_a_violation": "The cashier turns the bag over and inspects it and the seal before accepting it. Carrying a bag or walking in with it is not accepting it; if the inspection moment cannot be seen, it is not a violation.",
       "source": {
         "title": "Правила осуществления кассовых операций и операций по инкассации банкнот, монет и ценностей в банках второго уровня… (постановление Правления НБРК от 29.11.2019 № 231)",
         "short_title": "Правила кассовых операций и инкассации (пост. Правления НБРК от 29.11.2019 № 231)",
@@ -175,8 +175,8 @@
       "enabled": true,
       "verified": true,
       "type_ru": "Посторонний в кассовом помещении",
-      "visual_cue": "A customer or other person who is not a cashier comes inside the cashier's enclosed area or booth (behind the counter, next to the cashier's desk or safe).",
-      "not_a_violation": "Customers stay on their side of the window; only cashier staff are inside.",
+      "visual_cue": "A person who is not the cashier crosses from the customer side or the doorway into the cashier's enclosed working area (behind the desk, next to the safe) and stays there.",
+      "not_a_violation": "Customers staying on their side of the desk; the cashier; reflections in the glass; people seen outside through the glass.",
       "source": {
         "title": "Правила осуществления кассовых операций и операций по инкассации банкнот, монет и ценностей в банках второго уровня… (постановление Правления НБРК от 29.11.2019 № 231)",
         "short_title": "Правила кассовых операций и инкассации (пост. Правления НБРК от 29.11.2019 № 231)",
@@ -194,8 +194,8 @@
       "enabled": true,
       "verified": true,
       "type_ru": "Дверь кассового помещения оставлена открытой",
-      "visual_cue": "The door to the cashier's booth or cash room stays open (not closed behind a person) while cash is being handled or the cashier is working.",
-      "not_a_violation": "The door is opened briefly to pass and closed right after.",
+      "visual_cue": "The entrance door of the room or booth where the cashier works (not a safe, cabinet or drawer door) stays open after the person who came in has reached the desk, and stays open while the cashier works or handles cash.",
+      "not_a_violation": "A person opens the door, walks through and closes it: the door is open only while passing. Safe, cabinet and drawer doors are not the room door. A glass wall or a door seen from inside that is closed does not count.",
       "source": {
         "title": "Правила организации охраны и устройства помещений банков второго уровня… (постановление Правления НБРК от 24.02.2020 № 14)",
         "short_title": "Правила охраны и устройства помещений банков (пост. Правления НБРК от 24.02.2020 № 14)",
