@@ -118,3 +118,30 @@ def test_same_answer_to_question_and_negation_is_not_confirmed(video):
         return {"events": []}
     events, stats = run(video, MockVLM(responder))
     assert events == [] and stats["recheck_answers"][0][1] == "yes/yes"
+
+
+def test_one_failed_checklist_vote_is_tolerated_both_failed_is_not(video):
+    from app.vlm import VLMError
+    state = {"n": 0}
+
+    def flaky(kind, parts):
+        ids = _ids(parts)
+        if kind == "checklist":
+            state["n"] += 1
+            if state["n"] == 1:
+                raise VLMError("VLM call failed: JSONDecodeError")
+            flags = dict(NO_FLAGS); flags["door_left_open"] = {"present": "yes", "frame_id": ids[len(ids) // 2]}
+            return {"services": [], "cashier_leaves": [], "flags": flags}
+        if kind == "recheck":
+            answer = "no" if _is_negation(parts) else "yes"
+            return {"answer": answer, "frame_id": ids[0], "confidence": 0.9, "observation": "x"}
+        return {"events": []}
+    events, stats = run(video, MockVLM(flaky))
+    assert [e.rule_id for e in events] == ["cash_room_door_open"] and stats["checklist_raw"] == [1]
+
+    def broken(kind, parts):
+        if kind == "checklist":
+            raise VLMError("VLM call failed: JSONDecodeError")
+        return {"events": []}
+    with pytest.raises(VLMError):
+        run(video, MockVLM(broken))

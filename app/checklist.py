@@ -6,12 +6,15 @@ offset frame grids must agree before a finding is kept.
 """
 
 import asyncio
+import logging
 from dataclasses import dataclass
 
 from app.config import Settings
 from app.media import DecodedVideo, Frame
 from app.rules import RuleRegistry
 from app.vlm import VLM, text_part
+
+log = logging.getLogger("checklist")
 
 TRI = {"type": "string", "enum": ["yes", "no", "unclear"]}
 FID = {"type": "string"}
@@ -141,7 +144,7 @@ async def one_vote(vlm: VLM, video: DecodedVideo, prompt: str, s: Settings, offs
     from app.pipeline import frames_parts  # local import: pipeline imports this module
 
     async def seg_call(frames: list[Frame]) -> list[Finding]:
-        out = await vlm.chat_json([text_part(prompt)] + frames_parts(frames), checklist_schema(), max_tokens=1500)
+        out = await vlm.chat_json([text_part(prompt)] + frames_parts(frames), checklist_schema(), max_tokens=2000)
         return findings_from(out, frames, video)
 
     per_seg = await asyncio.gather(*(seg_call(f) for f in segments(video, s, offset)))
@@ -164,7 +167,15 @@ async def run_votes(vlm: VLM, video: DecodedVideo, s: Settings) -> list[list[Fin
     prompt = (s.prompts_dir / "checklist.txt").read_text(encoding="utf-8")
     step = max(1, round(s.verify_fps / s.checklist_fps))
     offsets = [round(i * step / s.checklist_votes) for i in range(s.checklist_votes)]
-    return list(await asyncio.gather(*(one_vote(vlm, video, prompt, s, o) for o in offsets)))
+    results = await asyncio.gather(*(one_vote(vlm, video, prompt, s, o) for o in offsets), return_exceptions=True)
+    votes = [r for r in results if not isinstance(r, BaseException)]
+    if not votes:
+        # Every vote failed: fail the job rather than report a silent "no violation".
+        raise next(r for r in results if isinstance(r, BaseException))
+    for r in results:
+        if isinstance(r, BaseException):
+            log.warning("checklist vote failed, continuing with %d vote(s): %s", len(votes), r)
+    return votes
 
 
 async def run_checklist(vlm: VLM, video: DecodedVideo, reg: RuleRegistry, s: Settings) -> tuple[list[Finding], dict]:
