@@ -22,6 +22,7 @@ class Rule:
     not_a_violation: str
     verified: bool
     source: Source
+    interpretation_ru: str = ""
 
     def reference_ru(self) -> str:
         s = self.source
@@ -31,7 +32,8 @@ class Rule:
         if s.section:
             parts.append(s.section)
         ref = ", ".join(parts)
-        return f"Основание: {ref}." + (f" {s.url}" if s.url else "")
+        out = f"Основание: {ref}." + (f" {s.url}" if s.url else "")
+        return out + (f" Трактовка: {self.interpretation_ru}" if self.interpretation_ru else "")
 
 
 class RuleRegistry:
@@ -55,6 +57,7 @@ class RuleRegistry:
                     not_a_violation=r.get("not_a_violation", ""),
                     verified=bool(r.get("verified")),
                     source=Source(**r["source"]),
+                    interpretation_ru=r.get("interpretation_ru", ""),
                 )
             )
         ids = [r.rule_id for r in rules]

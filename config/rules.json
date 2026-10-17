@@ -1,6 +1,6 @@
 {
-  "_note": "v2. Types and codes come from the team's catalogue (Каталог правил, Datathon 26, 17.10.2026) and labels_fixed.xlsx. 'codes' are the label codes <act>.<point>.<subpoint>. verified=true means the quote was checked against the team catalogue; 53.26.1 cites ARDFM № 53 (03.04.2026) п.26 пп.1 plus п.71 пп.9, accepted by the team on 17.10.2026.",
-  "version": "v2",
+  "_note": "v2. Types and codes come from the team's catalogue (Каталог правил, Datathon 26, 17.10.2026) and labels_fixed.xlsx. 'codes' are the label codes <act>.<point>.<subpoint>. verified=true means the quote was checked against the team catalogue; 53.26.1 cites ARDFM № 53 (03.04.2026) п.26 пп.1 plus п.71 пп.9, accepted by the team on 17.10.2026. v2.1 (17.10.2026): added interpretation_ru where the clause is applied by analogy or only sets a general duty (critic review).",
+  "version": "v2.1",
   "rules": [
     {
       "rule_id": "no_client_identification",
@@ -137,7 +137,7 @@
       "enabled": true,
       "verified": true,
       "type_ru": "Инкассаторская сумка принята без проверки целостности",
-      "visual_cue": "A cash collection bag, case or container is accepted from a collector, or opened, without the cashier visibly inspecting the bag and its seal, or its contents are not counted.",
+      "visual_cue": "A cash collection bag, case or container is accepted from a collector, or opened, without the cashier visibly inspecting the bag and its seal first.",
       "not_a_violation": "The cashier turns the bag over and inspects it and the seal before accepting it.",
       "source": {
         "title": "Правила осуществления кассовых операций и операций по инкассации банкнот, монет и ценностей в банках второго уровня… (постановление Правления НБРК от 29.11.2019 № 231)",
@@ -145,7 +145,8 @@
         "section": "п. 24 пп. 3)–4)",
         "url": "https://adilet.zan.kz/rus/docs/V1900019680",
         "quote": "3) проверяет целостность сумки; 4) проверяет правильность пломбирования сумки."
-      }
+      },
+      "interpretation_ru": "Пп. 3)–4) требуют проверить целостность сумки и правильность пломбирования; пересчёт содержимого предусмотрен п. 25 только при нарушении целостности."
     },
     {
       "rule_id": "denominations_mixed",
@@ -182,7 +183,8 @@
         "section": "п. 75",
         "url": "https://adilet.zan.kz/rus/docs/V1900019680",
         "quote": "Вход в кладовую и (или) сейфовую комнату разрешается лицам, ответственным за сохранность наличных денег…"
-      }
+      },
+      "interpretation_ru": "П. 75 ограничивает вход в кладовую и сейфовую комнату. Применение к кассовой кабине и рабочему месту кассира — трактовка команды по аналогии; полномочия человека по видео не устанавливаются."
     },
     {
       "rule_id": "cash_room_door_open",
@@ -200,7 +202,8 @@
         "section": "п. 8",
         "url": "https://adilet.zan.kz/rus/docs/V2000020075",
         "quote": "Кассовый узел подлежит изолированию от других производственных, подсобных, подвальных и служебных помещений одним закрывающимся служебным входом."
-      }
+      },
+      "interpretation_ru": "Пункт требует изолировать кассовый узел одним закрывающимся служебным входом. Открытая во время работы с наличными дверь, по трактовке команды, нарушает эту изоляцию; минимальная длительность в норме не указана."
     },
     {
       "rule_id": "collection_visible_to_outsiders",
@@ -218,7 +221,8 @@
         "section": "п. 21",
         "url": "https://adilet.zan.kz/rus/docs/V2000020075",
         "quote": "При устройстве бокса или погрузочно-разгрузочной площадки обеспечивается ограничение доступа и просмотра третьими лицами за осуществлением инкассации банкнот, монет и ценностей."
-      }
+      },
+      "interpretation_ru": "Пункт относится к устройству бокса или погрузочно-разгрузочной площадки; по видео оценивается только видимое присутствие посторонних при инкассации."
     },
     {
       "rule_id": "workstation_not_locked",
@@ -233,10 +237,11 @@
       "source": {
         "title": "Требования к обеспечению информационной безопасности банков, филиалов банков-нерезидентов Республики Казахстан и организаций, осуществляющих отдельные виды банковских операций (постановление Правления АРРФР от 03.04.2026 № 53)",
         "short_title": "Требования к информационной безопасности банков (пост. Правления АРРФР от 03.04.2026 № 53)",
-        "section": "п. 26 пп. 1); см. также п. 71 пп. 9)",
+        "section": "п. 26 пп. 1)",
         "url": "https://adilet.zan.kz/rus/docs/V2600038336",
-        "quote": "26. Работники структурных подразделений банка, организации: 1) отвечают за соблюдение требований к информационной безопасности, принятых в банке, организации; 71. … 9) при неактивности пользователя более 30 (тридцати) минут информационная система автоматически завершает сеанс работы пользователя либо блокирует рабочую станцию или ноутбук…"
-      }
+        "quote": "26. Работники структурных подразделений банка, организации: 1) отвечают за соблюдение требований к информационной безопасности, принятых в банке, организации"
+      },
+      "interpretation_ru": "Пункт устанавливает общую обязанность работников соблюдать принятые в банке требования информационной безопасности. Конкретное требование блокировать компьютер при уходе с рабочего места задаётся внутренними документами банка и подлежит проверке по ним."
     }
   ]
 }
