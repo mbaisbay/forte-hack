@@ -11,4 +11,5 @@ Rules:
 - Normal work (serving a customer, counting cash in view, typing, routine movement) is NOT a violation.
 - If nothing in the catalogue is visible, return an empty "events" list. An empty list is a valid answer.
 - For each event give the first and last frame IDs where it is visible, the single frame that shows it best,
-  a short factual observation in Russian (what is visible, who does what, with which object), and your confidence 0..1.
+  a short factual observation in Russian (one sentence, at most 25 words: what is visible, who does what, with which object), and your confidence 0..1.
+- Report at most 4 events per sequence.

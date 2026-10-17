@@ -92,6 +92,8 @@ def main() -> None:
     ap.add_argument("--subset", choices=["dev", "holdout", "all"], default="dev")
     ap.add_argument("--parallel", type=int, default=1, help="concurrent submissions (simulate the jury)")
     ap.add_argument("--details", type=Path, default=Path("eval_details.json"))
+    ap.add_argument("--results-dir", type=Path, default=Path("data/results"),
+                    help="where the worker writes <job>.meta.json (counts and timings only)")
     args = ap.parse_args()
 
     key = args.key
@@ -112,6 +114,7 @@ def main() -> None:
     tp = fp = tn = fn = failed = 0
     errs, secs, n_events = [], [], []
     details = {}
+    diag: dict[str, list[dict]] = {}
     for i in ids:
         lab, out = labels[i], outs[i]
         secs.append(out["sec"])
@@ -122,6 +125,10 @@ def main() -> None:
             fn += lab["violation"]; fp += not lab["violation"]
             continue
         pred = out["verdict"] == "violation"
+        outcome = ("TP" if lab["violation"] else "FP") if pred else ("FN" if lab["violation"] else "TN")
+        meta_path = args.results_dir / f"{out['job_id']}.meta.json"
+        if meta_path.exists():
+            diag.setdefault(outcome, []).append(json.loads(meta_path.read_text()))
         times = [v["timecode_sec"] for v in out["violations"]]
         n_events.append(len(times))
         if pred and lab["violation"]:
@@ -151,6 +158,19 @@ def main() -> None:
         print(f"events per clip: mean={statistics.mean(n_events):.2f} max={max(n_events)}")
     if secs:
         print(f"end-to-end sec: median={statistics.median(secs):.0f} max={max(secs):.0f} over_300={sum(s > 300 for s in secs)}")
+    for outcome in ("TP", "FN", "FP", "TN"):
+        metas = diag.get(outcome, [])
+        if not metas:
+            continue
+        status_tot: dict[str, int] = {}
+        for m in metas:
+            for k, v in m.get("final_status_counts", {}).items():
+                status_tot[k] = status_tot.get(k, 0) + v
+        no_cand = sum(m.get("raw_candidates", 0) == 0 for m in metas)
+        print(f"diag {outcome} n={len(metas)}: clips with no pass-1 candidate={no_cand} "
+              f"mean raw cands={statistics.mean(m.get('raw_candidates', 0) for m in metas):.1f} "
+              f"mean max pass-1 conf={statistics.mean(m.get('max_pass1_conf', 0) for m in metas):.2f} "
+              f"final statuses={status_tot}")
     print(f"per-clip details written locally to {args.details} (do not paste into cloud tools)")
 
 

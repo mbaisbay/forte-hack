@@ -36,6 +36,7 @@ def observe_schema(rule_ids: list[str]) -> dict:
         "properties": {
             "events": {
                 "type": "array",
+                "maxItems": 4,
                 "items": {
                     "type": "object",
                     "properties": {
@@ -106,7 +107,7 @@ def _clamp_conf(x) -> float:
 
 async def observe_window(vlm: VLM, window: list[Frame], video: DecodedVideo, reg: RuleRegistry, prompt: str) -> list[Candidate]:
     parts = [text_part(prompt.format(catalogue=reg.catalogue_text()))] + frames_parts(window)
-    out = await vlm.chat_json(parts, observe_schema(reg.ids()), max_tokens=800)
+    out = await vlm.chat_json(parts, observe_schema(reg.ids()), max_tokens=1200)
     allowed = {f.frame_id for f in window}
     cands = []
     for ev in out.get("events", []):
@@ -155,7 +156,7 @@ def _even_subsample(frames: list[Frame], n: int) -> list[Frame]:
 async def verify(vlm: VLM, c: Candidate, video: DecodedVideo, reg: RuleRegistry, prompt: str, s: Settings) -> Candidate:
     frames = _even_subsample(video.between(c.start - s.verify_pad_sec, c.end + s.verify_pad_sec), s.verify_max_frames)
     text = prompt.format(rule_id=c.rule_id, observation=c.observation, catalogue=reg.catalogue_text())
-    out = await vlm.chat_json([text_part(text)] + frames_parts(frames), verify_schema(reg.ids()), max_tokens=600)
+    out = await vlm.chat_json([text_part(text)] + frames_parts(frames), verify_schema(reg.ids()), max_tokens=900)
     allowed = {f.frame_id for f in frames}
     ev_ids = [i for i in out.get("evidence_frame_ids", []) if i in allowed][:3]
     key = out.get("key_frame_id") if out.get("key_frame_id") in allowed else (ev_ids[0] if ev_ids else c.key_frame_id)
@@ -210,6 +211,11 @@ async def run(video: DecodedVideo, vlm: VLM, reg: RuleRegistry, s: Settings, dea
         stats["pass2_skipped"] = bool(cands)
     stats["pass2_sec"] = round(time.monotonic() - t1, 2)
 
+    stats["max_pass1_conf"] = round(max((c.confidence for c in raw), default=0.0), 2)
+    statuses: dict[str, int] = {}
+    for c in final_pool:
+        statuses[c.status] = statuses.get(c.status, 0) + 1
+    stats["final_status_counts"] = statuses
     kept = merge([c for c in final_pool if accepted(c, s)], s.merge_gap_sec)
     stats["accepted"] = len(kept)
     return kept, stats

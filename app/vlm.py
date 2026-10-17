@@ -42,8 +42,16 @@ class LocalVLM:
         assert_loopback(base_url)
         self.base_url = base_url.rstrip("/")
         self.model = model
-        self._sem = asyncio.Semaphore(concurrency)
+        self._concurrency = concurrency
         self._timeout = timeout_sec
+        # Each job runs in its own event loop (asyncio.run), so the semaphore is per loop.
+        self._sems: dict[int, asyncio.Semaphore] = {}
+
+    def _sem(self) -> asyncio.Semaphore:
+        loop_id = id(asyncio.get_running_loop())
+        if loop_id not in self._sems:
+            self._sems = {loop_id: asyncio.Semaphore(self._concurrency)}
+        return self._sems[loop_id]
 
     async def chat_json(self, parts: list[dict], schema: dict, max_tokens: int) -> dict:
         body = {
@@ -57,14 +65,20 @@ class LocalVLM:
             },
         }
         last_exc: Exception | None = None
-        async with self._sem:
-            for _ in range(2):  # one retry for transient errors
+        async with self._sem():
+            for _ in range(2):  # one retry; a truncated answer is retried with a larger budget
                 try:
                     async with httpx.AsyncClient(timeout=self._timeout, trust_env=False) as client:
                         resp = await client.post(f"{self.base_url}/chat/completions", json=body)
                     resp.raise_for_status()
-                    content = resp.json()["choices"][0]["message"]["content"]
-                    return json.loads(content)
+                    choice = resp.json()["choices"][0]
+                    content = choice["message"]["content"]
+                    try:
+                        return json.loads(content)
+                    except json.JSONDecodeError:
+                        if choice.get("finish_reason") == "length":
+                            body["max_tokens"] = body["max_tokens"] * 2
+                        raise
                 except (httpx.HTTPError, KeyError, json.JSONDecodeError) as exc:
                     last_exc = exc
         raise VLMError(f"VLM call failed: {type(last_exc).__name__}")

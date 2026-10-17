@@ -116,3 +116,29 @@ def test_two_distinct_incidents_stay_separate(long_synthetic_video):
         return ra if min(ts) < 15 else rb
     events, _ = run(video, MockVLM(responder))
     assert len(events) == 2
+
+
+def test_local_vlm_works_across_event_loops(monkeypatch):
+    """Each job runs asyncio.run(); the client must not reuse a semaphore from an old loop."""
+    import httpx
+    from app.vlm import LocalVLM
+
+    class FakeResp:
+        def raise_for_status(self): pass
+        def json(self): return {"choices": [{"message": {"content": '{"events": []}'}, "finish_reason": "stop"}]}
+
+    async def fake_post(self, url, json):
+        return FakeResp()
+
+    monkeypatch.setattr(httpx.AsyncClient, "post", fake_post)
+    vlm = LocalVLM("http://127.0.0.1:8000/v1", "m", concurrency=1, timeout_sec=5)
+    for _ in range(3):
+        async def many():
+            return await asyncio.gather(*(vlm.chat_json([], {}, 10) for _ in range(4)))
+        assert len(asyncio.run(many())) == 4
+
+
+def test_local_vlm_rejects_remote_url():
+    from app.vlm import LocalVLM
+    with pytest.raises(VLMError):
+        LocalVLM("https://api.example.com/v1", "m", 1, 5)
