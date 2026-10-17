@@ -157,3 +157,23 @@ def test_result_evidence_contains_key_frame(video):
     r = pipeline.build_result("job", [c], video, REG)
     ts = [f.timestamp_sec for f in r.violations[0].evidence_frames]
     assert round(video.frames[30].timestamp_sec, 2) in ts and len(ts) <= 3
+
+
+def test_semaphore_is_per_loop_across_threads():
+    import threading
+    from app.vlm import LocalVLM
+    vlm = LocalVLM("http://127.0.0.1:9/v1", "m", 2, 1.0)
+    seen, errors = [], []
+
+    def job():
+        async def main():
+            a, b = vlm._sem(), vlm._sem()
+            seen.append(a is b)
+        try:
+            asyncio.run(main())
+        except Exception as exc:  # noqa: BLE001
+            errors.append(exc)
+    ts = [threading.Thread(target=job) for _ in range(8)]
+    for t in ts: t.start()
+    for t in ts: t.join()
+    assert not errors and all(seen) and len(seen) == 8

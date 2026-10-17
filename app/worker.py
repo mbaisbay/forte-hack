@@ -7,6 +7,7 @@ import asyncio
 import json
 import logging
 import os
+import threading
 import time
 from pathlib import Path
 
@@ -69,13 +70,22 @@ def main() -> None:
     requeued = store.recover_interrupted()
     if requeued:
         log.info("requeued %d interrupted job(s)", requeued)
-    log.info("worker ready: backend=%s model=%s rules=%s", s.vlm_backend, s.vlm_model, reg.version)
-    while True:
-        job = store.claim_next()
-        if job is None:
-            time.sleep(s.worker_poll_sec)
-            continue
-        process(job, store, vlm, reg, s)
+    log.info("worker ready: backend=%s model=%s rules=%s threads=%d", s.vlm_backend, s.vlm_model, reg.version,
+             s.worker_threads)
+
+    def loop() -> None:
+        while True:
+            job = store.claim_next()  # atomic: two threads never get the same job
+            if job is None:
+                time.sleep(s.worker_poll_sec)
+                continue
+            process(job, store, vlm, reg, s)
+
+    threads = [threading.Thread(target=loop, name=f"worker-{i}", daemon=True) for i in range(max(1, s.worker_threads))]
+    for t in threads:
+        t.start()
+    for t in threads:
+        t.join()
 
 
 if __name__ == "__main__":

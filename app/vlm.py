@@ -5,6 +5,7 @@ Only loopback endpoints are accepted, so a misconfigured URL can never send fram
 
 import asyncio
 import json
+import threading
 from typing import Any, Protocol
 from urllib.parse import urlparse
 
@@ -45,14 +46,19 @@ class LocalVLM:
         self.model = model
         self._concurrency = concurrency
         self._timeout = timeout_sec
-        # Each job runs in its own event loop (asyncio.run), so the semaphore is per loop.
+        # Each job runs in its own event loop (asyncio.run), possibly in parallel worker threads,
+        # so there is one semaphore per live loop.
         self._sems: dict[int, asyncio.Semaphore] = {}
+        self._sems_lock = threading.Lock()
 
     def _sem(self) -> asyncio.Semaphore:
         loop_id = id(asyncio.get_running_loop())
-        if loop_id not in self._sems:
-            self._sems = {loop_id: asyncio.Semaphore(self._concurrency)}
-        return self._sems[loop_id]
+        with self._sems_lock:
+            if loop_id not in self._sems:
+                if len(self._sems) > 32:  # drop entries of finished jobs' loops
+                    self._sems.clear()
+                self._sems[loop_id] = asyncio.Semaphore(self._concurrency)
+            return self._sems[loop_id]
 
     async def chat_json(self, parts: list[dict], schema: dict, max_tokens: int) -> dict:
         body = {

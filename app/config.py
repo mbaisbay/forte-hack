@@ -71,6 +71,9 @@ class Settings:
     # Jury cutoff is 300 s end to end; keep margin for queueing and upload.
     job_budget_sec: float = field(default_factory=lambda: float(_env("JOB_BUDGET_SEC", "200")))
     worker_poll_sec: float = field(default_factory=lambda: float(_env("WORKER_POLL_SEC", "0.5")))
+    # Jobs processed in parallel; vLLM batches their requests (stress test: 1 job at a time made the 5th of
+    # 5 simultaneous long uploads finish after 211 s).
+    worker_threads: int = field(default_factory=lambda: int(_env("WORKER_THREADS", "2")))
 
     @property
     def uploads_dir(self) -> Path:
