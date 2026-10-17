@@ -86,7 +86,10 @@ def page(clip: str, det: dict, calls: list[dict], video, team: dict, org: dict |
         out.append(f"<div class='card'><div class='head'><h2>#{i + 1} {KIND_RU.get(c['kind'], c['kind'])}</h2>"
                    f"<span class='pill'>{t[0]:.1f}–{t[1]:.1f} с</span><span class='pill'>{len(frames)} кадров</span>"
                    f"<span class='pill'>{c.get('sec', 0):.1f} с ответ</span><span class='pill'>{c.get('finish')}</span></div>"
-                   f"<div class='strip'>{strip}</div><pre>{html.escape(pretty)}</pre></div>")
+                   f"<div class='strip'>{strip}</div>"
+                   + (f"<details open><summary>Рассуждение модели ({len(c['reasoning'])} симв.)</summary>"
+                      f"<pre>{html.escape(c['reasoning'])}</pre></details>" if c.get("reasoning") else "")
+                   + f"<pre>{html.escape(pretty)}</pre></div>")
     out.append(f"<div id='lb'><img alt=''></div><script>{JS}</script></body></html>")
     return "\n".join(out)
 

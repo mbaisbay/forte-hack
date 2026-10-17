@@ -31,7 +31,8 @@ def call_kind(schema: dict) -> str:
             else "recheck" if "answer" in props else "states" if "rows" in props else "observe")
 
 
-def log_call(parts: list[dict], schema: dict, content: str | None, finish: str | None, sec: float) -> None:
+def log_call(parts: list[dict], schema: dict, content: str | None, finish: str | None, sec: float,
+             reasoning: str | None = None) -> None:
     path = CALL_LOG.get()
     if path is None:
         return
@@ -39,6 +40,8 @@ def log_call(parts: list[dict], schema: dict, content: str | None, finish: str |
     rec = {"kind": call_kind(schema), "frames": [f for f, _ in frames],
            "t": [float(frames[0][1]), float(frames[-1][1])] if frames else None,
            "finish": finish, "sec": round(sec, 2), "content": content}
+    if reasoning:
+        rec["reasoning"] = reasoning
     with path.open("a", encoding="utf-8") as fh:
         fh.write(json.dumps(rec, ensure_ascii=False) + "\n")
 
@@ -109,7 +112,9 @@ class LocalVLM:
                     resp.raise_for_status()
                     choice = resp.json()["choices"][0]
                     content = choice["message"]["content"]
-                    log_call(parts, schema, content, choice.get("finish_reason"), time.monotonic() - t0)
+                    msg = choice["message"]
+                    log_call(parts, schema, content, choice.get("finish_reason"), time.monotonic() - t0,
+                             msg.get("reasoning_content") or msg.get("reasoning"))
                     try:
                         return json.loads(content)
                     except json.JSONDecodeError:
