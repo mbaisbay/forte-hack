@@ -4,16 +4,43 @@ Only loopback endpoints are accepted, so a misconfigured URL can never send fram
 """
 
 import asyncio
+import contextvars
 import json
+import re
 import threading
+import time
 from typing import Any, Protocol
 from urllib.parse import urlparse
 
 import httpx
 
+from pathlib import Path
+
 from app.media import b64
 
 LOOPBACK_HOSTS = {"127.0.0.1", "localhost", "::1"}
+
+# Per-job file for raw model answers (local diagnostics only; set by the worker around each job).
+CALL_LOG: contextvars.ContextVar[Path | None] = contextvars.ContextVar("call_log", default=None)
+_FRAME_ID = re.compile(r"^(F\d{4}) t=([\d.]+)s")
+
+
+def call_kind(schema: dict) -> str:
+    props = schema.get("properties", {})
+    return ("verify" if "status" in props else "checklist" if "services" in props
+            else "recheck" if "answer" in props else "states" if "rows" in props else "observe")
+
+
+def log_call(parts: list[dict], schema: dict, content: str | None, finish: str | None, sec: float) -> None:
+    path = CALL_LOG.get()
+    if path is None:
+        return
+    frames = [m.groups() for p in parts if p.get("type") == "text" for m in [_FRAME_ID.match(p["text"])] if m]
+    rec = {"kind": call_kind(schema), "frames": [f for f, _ in frames],
+           "t": [float(frames[0][1]), float(frames[-1][1])] if frames else None,
+           "finish": finish, "sec": round(sec, 2), "content": content}
+    with path.open("a", encoding="utf-8") as fh:
+        fh.write(json.dumps(rec, ensure_ascii=False) + "\n")
 
 
 class VLMError(Exception):
@@ -76,11 +103,13 @@ class LocalVLM:
         async with self._sem():
             for _ in range(2):  # one retry; a truncated answer is retried with a larger budget
                 try:
+                    t0 = time.monotonic()
                     async with httpx.AsyncClient(timeout=self._timeout, trust_env=False) as client:
                         resp = await client.post(f"{self.base_url}/chat/completions", json=body)
                     resp.raise_for_status()
                     choice = resp.json()["choices"][0]
                     content = choice["message"]["content"]
+                    log_call(parts, schema, content, choice.get("finish_reason"), time.monotonic() - t0)
                     try:
                         return json.loads(content)
                     except json.JSONDecodeError:
@@ -100,9 +129,7 @@ class MockVLM:
         self.calls: list[str] = []
 
     async def chat_json(self, parts: list[dict], schema: dict, max_tokens: int) -> dict:
-        props = schema.get("properties", {})
-        kind = ("verify" if "status" in props else "checklist" if "services" in props
-                else "recheck" if "answer" in props else "states" if "rows" in props else "observe")
+        kind = call_kind(schema)
         self.calls.append(kind)
         return self.responder(kind, parts)
 

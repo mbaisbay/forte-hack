@@ -73,6 +73,8 @@ class Settings:
     worker_poll_sec: float = field(default_factory=lambda: float(_env("WORKER_POLL_SEC", "0.5")))
     # Jobs processed in parallel; vLLM batches their requests (stress test: 1 job at a time made the 5th of
     # 5 simultaneous long uploads finish after 211 s).
+    # Raw model answers per job in results/<job>.calls.jsonl (local diagnostics; never leaves the machine).
+    log_calls: bool = field(default_factory=lambda: _env("LOG_CALLS", "1") == "1")
     worker_threads: int = field(default_factory=lambda: int(_env("WORKER_THREADS", "2")))
 
     @property

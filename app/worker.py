@@ -16,7 +16,7 @@ from app.config import Settings, get_settings
 from app.jobs import Job, JobStore
 from app.media import MediaError, decode
 from app.rules import RuleRegistry
-from app.vlm import VLMError, build_vlm
+from app.vlm import CALL_LOG, VLMError, build_vlm
 
 log = logging.getLogger("worker")
 
@@ -35,7 +35,11 @@ def process(job: Job, store: JobStore, vlm, reg: RuleRegistry, s: Settings) -> N
     try:
         video = decode(Path(job.input_path), s.verify_fps, s.model_max_side)
         decode_sec = time.monotonic() - started
-        events, stats = asyncio.run(pipeline.run(video, vlm, reg, s, deadline))
+        token = CALL_LOG.set(s.results_dir / f"{job.id}.calls.jsonl" if s.log_calls else None)
+        try:
+            events, stats = asyncio.run(pipeline.run(video, vlm, reg, s, deadline))
+        finally:
+            CALL_LOG.reset(token)
         result = pipeline.build_result(job.id, events, video, reg)
     except (MediaError, VLMError) as exc:
         log.warning("job %s failed: %s", job.id, exc)

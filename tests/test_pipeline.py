@@ -177,3 +177,32 @@ def test_semaphore_is_per_loop_across_threads():
     for t in ts: t.start()
     for t in ts: t.join()
     assert not errors and all(seen) and len(seen) == 8
+
+
+def test_raw_calls_are_logged_per_job(video, tmp_path, monkeypatch):
+    import json as _json
+    import httpx
+    from app import vlm as vlm_mod
+
+    class FakeResp:
+        def raise_for_status(self): pass
+        def json(self): return {"choices": [{"message": {"content": '{"events": []}'}, "finish_reason": "stop"}]}
+
+    class FakeClient:
+        def __init__(self, *a, **k): pass
+        async def __aenter__(self): return self
+        async def __aexit__(self, *a): return False
+        async def post(self, *a, **k): return FakeResp()
+
+    monkeypatch.setattr(httpx, "AsyncClient", FakeClient)
+    client = vlm_mod.LocalVLM("http://127.0.0.1:8000/v1", "m", 2, 5.0)
+    path = tmp_path / "job.calls.jsonl"
+    token = vlm_mod.CALL_LOG.set(path)
+    try:
+        parts = pipeline.frames_parts(video.frames[:3])
+        asyncio.run(client.chat_json(parts, pipeline.observe_schema(REG.ids()), max_tokens=50))
+    finally:
+        vlm_mod.CALL_LOG.reset(token)
+    rec = _json.loads(path.read_text().splitlines()[0])
+    assert rec["kind"] == "observe" and rec["frames"] == [f.frame_id for f in video.frames[:3]]
+    assert rec["content"] == '{"events": []}' and "image" not in path.read_text()
