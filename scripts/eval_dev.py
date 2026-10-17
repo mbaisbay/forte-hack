@@ -86,6 +86,41 @@ def match_events(preds: list[tuple[float, set]], truth: list[dict], tol: float =
     return len(used_p)
 
 
+def official_score(outs: dict[str, dict], labels: dict[str, dict]) -> dict:
+    """Scoring confirmed by the organizers: whole-video verdict + timecode only (type not scored), tolerance 3-5 s,
+    every violation counts. score = (25*accuracy + 15*share of labelled moments hit by any reported event) / 40.
+    Failed or timed-out jobs count as wrong verdicts with no events."""
+    n = right = tp = viol = clean_flagged = moments = hit3 = hit5 = 0
+    for clip, out in outs.items():
+        lab = labels[clip]
+        done = out.get("status") == "done"
+        pred = done and out["verdict"] == "violation"
+        ts = [v["timecode_sec"] for v in out.get("violations", [])] if done else []
+        n += 1
+        right += done and pred == lab["violation"]  # an unprocessed video is wrong either way
+        if lab["violation"]:
+            viol += 1
+            tp += pred
+            for lt in [e["t"] for e in lab["events"] if e["t"] is not None] or lab["times"]:
+                moments += 1
+                hit3 += any(abs(t - lt) <= 3 for t in ts)
+                hit5 += any(abs(t - lt) <= 5 for t in ts)
+        else:
+            clean_flagged += pred
+    acc = right / n if n else 0.0
+    return {"n": n, "accuracy": acc, "tp": tp, "viol": viol, "clean_flagged": clean_flagged, "clean": n - viol,
+            "moments": moments, "hit3": hit3, "hit5": hit5,
+            "score3": (25 * acc + 15 * (hit3 / moments if moments else 0)) / 40,
+            "score5": (25 * acc + 15 * (hit5 / moments if moments else 0)) / 40}
+
+
+def print_official(name: str, s: dict) -> None:
+    print(f"SCORE[{name}] ±3s={s['score3']:.1%} ±5s={s['score5']:.1%} | accuracy={s['accuracy']:.0%} "
+          f"recall={s['tp']}/{s['viol']} clean_flagged={s['clean_flagged']}/{s['clean']} "
+          f"moments_hit ±3s={s['hit3']}/{s['moments']} ±5s={s['hit5']}/{s['moments']}"
+          + ("" if s["viol"] == 0 or s["tp"] / s["viol"] >= 0.75 else "  (recall below 75% floor)"))
+
+
 def rule_codes(rules_path: Path) -> dict[str, set[str]]:
     """Russian type name (as the API returns it) -> label codes it covers."""
     rules = json.loads(rules_path.read_text(encoding="utf-8"))["rules"]
@@ -113,6 +148,8 @@ def main() -> None:
     ap = argparse.ArgumentParser()
     ap.add_argument("--videos", type=Path, default=Path("open/videos"))
     ap.add_argument("--labels", type=Path, default=Path("open/labels_fixed.xlsx"))
+    ap.add_argument("--org-labels", type=Path, default=Path("open/open_labels.xlsx"),
+                    help="organizer label file, scored as a second track")
     ap.add_argument("--rules", type=Path, default=Path("config/rules.json"))
     ap.add_argument("--base", default="http://127.0.0.1:8080")
     ap.add_argument("--key", default=None, help="defaults to API_KEY from .env")
@@ -190,6 +227,11 @@ def main() -> None:
     args.details.write_text(json.dumps(details, ensure_ascii=False, indent=2), encoding="utf-8")
 
     n = len(ids)
+    scored = {i: outs[i] for i in ids}
+    print_official("team labels", official_score(scored, labels))
+    if args.org_labels.exists():
+        org = load_labels(args.org_labels)
+        print_official("organizer labels", official_score({i: o for i, o in scored.items() if i in org}, org))
     pct = lambda a, b: f"{100 * a / b:.0f}%" if b else "n/a"
     print(f"subset={args.subset} clips={n} parallel={args.parallel} (labels without video: {len(missing)})")
     print(f"video-level: TP={tp} FP={fp} TN={tn} FN={fn} failed/timeout={failed}")
