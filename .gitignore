@@ -16,3 +16,4 @@ __pycache__/
 # case materials: keep local, never push
 *.pdf
 fortebank_hackathon_coding_agent_brief.md
+.claude/

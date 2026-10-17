@@ -1,0 +1,90 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="light dark">
+  <title>Проверка видео</title>
+  <link rel="stylesheet" href="/static/style.css">
+  <script src="/static/app.js" defer></script>
+</head>
+<body>
+  <header class="site-header">
+    <div class="brand"><span class="brand-mark" aria-hidden="true"></span>Видеопроверка</div>
+    <span class="local-label">Локальный анализ</span>
+  </header>
+  <main id="main">
+    <div class="intro">
+      <p class="eyebrow">Проверка видеозаписи</p>
+      <h1>Внимание к деталям</h1>
+      <p>Загрузите видео, чтобы найти фрагменты, требующие проверки человеком.</p>
+    </div>
+
+    <section id="upload-view" class="panel" aria-labelledby="upload-title">
+      <h2 id="upload-title">Выберите видео</h2>
+      <form id="upload-form">
+        <div id="drop-zone" class="drop-zone">
+          <svg class="upload-icon" viewBox="0 0 48 48" fill="none" aria-hidden="true"><path d="M24 31V9m-8 8 8-8 8 8M10 30v7a3 3 0 0 0 3 3h22a3 3 0 0 0 3-3v-7" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          <p class="drop-title">Перетащите видео сюда</p>
+          <p id="file-hint" class="muted">MOV и другие видеоформаты. Один файл за проверку.</p>
+          <button id="choose-file" type="button" class="secondary" aria-describedby="file-hint file-info">Выбрать файл</button>
+          <input id="file-input" name="file" type="file" accept=".mov,video/*,.mp4,.m4v,.webm,.mkv,.avi,.mpeg,.mpg,.mts,.m2ts,.3gp,.ogv" aria-label="Выберите видео" hidden>
+        </div>
+        <p id="file-info" class="file-info" role="status">Файл не выбран</p>
+        <p id="selection-error" class="error-text" role="alert" hidden></p>
+        <div class="actions"><button id="analyze-button" type="submit" disabled>Проверить</button><span class="muted">Анализ без звука</span></div>
+      </form>
+    </section>
+
+    <section id="uploading-view" class="panel state-panel" aria-labelledby="uploading-title" hidden>
+      <p class="eyebrow">Передача файла</p>
+      <h2 id="uploading-title" tabindex="-1">Загружаем видео…</h2>
+      <p id="upload-name" class="file-info"></p>
+      <progress id="upload-progress" max="100" value="0" aria-label="Прогресс загрузки"></progress>
+      <p id="upload-progress-text" role="status">Загружено 0 %</p>
+    </section>
+
+    <section id="processing-view" class="panel state-panel" aria-labelledby="processing-title" hidden>
+      <span class="spinner" aria-hidden="true"></span>
+      <h2 id="processing-title" tabindex="-1">Идёт анализ…</h2>
+      <p class="muted">Результат появится здесь автоматически.</p>
+      <p>Прошло <span id="elapsed">0</span> с <span class="muted">с открытия задания</span></p>
+      <p id="connection-note" class="connection-note" role="status" hidden>нет связи, повтор…</p>
+    </section>
+
+    <section id="failed-view" class="panel failure" aria-labelledby="failed-title" hidden>
+      <p class="eyebrow">Проверка прервана</p>
+      <h2 id="failed-title" tabindex="-1">Не удалось проверить видео</h2>
+      <p id="error-message" class="error-text" role="alert"></p>
+      <button type="button" data-reset>Загрузить другое видео</button>
+    </section>
+
+    <section id="done-view" aria-labelledby="verdict-title" hidden>
+      <div id="verdict-banner" class="verdict" role="status">
+        <p class="eyebrow">Анализ завершён</p>
+        <h2 id="verdict-title" tabindex="-1"></h2>
+        <p id="no-violation-note" hidden>В проверенных фрагментах видимых признаков нарушений не найдено.</p>
+      </div>
+      <section class="panel player-panel" aria-labelledby="video-title">
+        <h2 id="video-title">Исходное видео</h2>
+        <video id="video-player" controls playsinline preload="metadata" aria-label="Загруженное видео">Ваш браузер не поддерживает воспроизведение видео.</video>
+        <p id="player-note" class="muted" role="status" hidden></p>
+        <p class="muted player-hint">Нажмите на таймкод или кадр, чтобы перейти к нужному моменту.</p>
+      </section>
+      <section id="violations-section" aria-labelledby="violations-title" hidden>
+        <div class="section-heading"><h2 id="violations-title">Фрагменты для проверки</h2><span id="violation-count" class="count"></span></div>
+        <div id="violations-list"></div>
+      </section>
+      <details class="panel api-details"><summary>JSON ответа API</summary><pre id="api-json" tabindex="0"></pre></details>
+      <button type="button" class="secondary" data-reset>Проверить другое видео</button>
+    </section>
+    <noscript><p class="panel error-text">Для загрузки и анализа видео включите JavaScript в браузере.</p></noscript>
+  </main>
+  <footer>Результат — подсказка для проверки человеком, а не юридическое или дисциплинарное заключение. Анализ только визуальный, без звука и без распознавания лиц. Все модели работают локально.</footer>
+  <dialog id="lightbox" aria-labelledby="lightbox-title">
+    <div class="lightbox-toolbar"><h2 id="lightbox-title">Кадр видео</h2><button id="close-lightbox" type="button" class="secondary">Закрыть</button></div>
+    <p class="lightbox-hint">Нажмите на изображение или вне окна, чтобы закрыть. Также работает Esc.</p>
+    <div class="full-image"><img id="lightbox-image" alt=""></div>
+  </dialog>
+</body>
+</html>
