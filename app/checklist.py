@@ -76,6 +76,7 @@ class Finding:
     rule_id: str
     t: float
     frame_id: str
+    start: float | None = None  # context start for omission checks (service start / end of service)
 
 
 def segments(video: DecodedVideo, s: Settings, offset: int) -> list[list[Frame]]:
@@ -99,10 +100,10 @@ def findings_from(answer: dict, frames: list[Frame], video: DecodedVideo) -> lis
     at = lambda fid: shown.get(fid)
     out: list[Finding] = []
 
-    def add(rule_id: str, *fids: str) -> None:
+    def add(rule_id: str, *fids: str, start: float | None = None) -> None:
         for fid in fids:
             if at(fid):
-                out.append(Finding(rule_id, at(fid).timestamp_sec, fid))
+                out.append(Finding(rule_id, at(fid).timestamp_sec, fid, start))
                 return
 
     services = answer.get("services", [])
@@ -114,7 +115,8 @@ def findings_from(answer: dict, frames: list[Frame], video: DecodedVideo) -> lis
         if at(cash):
             late_id = at(idf) and at(idf).timestamp_sec > at(cash).timestamp_sec + 1.0
             if sv.get("id_document_checked") == "no" or late_id:
-                add("no_client_identification", cash)
+                begin = at(sv.get("start_frame_id"))
+                add("no_client_identification", cash, start=begin.timestamp_sec if begin else None)
             if finished and sv.get("cash_secured_after") == "no":
                 add("cash_left_unsecured", end, cash)
         if finished and sv.get("receipt_given") == "no":
@@ -157,11 +159,16 @@ def agree(votes: list[list[Finding]], tol: float) -> list[Finding]:
     return kept
 
 
-async def run_checklist(vlm: VLM, video: DecodedVideo, reg: RuleRegistry, s: Settings) -> tuple[list[Finding], dict]:
+async def run_votes(vlm: VLM, video: DecodedVideo, s: Settings) -> list[list[Finding]]:
+    """All checklist votes (offset frame grids), unfiltered."""
     prompt = (s.prompts_dir / "checklist.txt").read_text(encoding="utf-8")
     step = max(1, round(s.verify_fps / s.checklist_fps))
     offsets = [round(i * step / s.checklist_votes) for i in range(s.checklist_votes)]
-    votes = await asyncio.gather(*(one_vote(vlm, video, prompt, s, o) for o in offsets))
+    return list(await asyncio.gather(*(one_vote(vlm, video, prompt, s, o) for o in offsets)))
+
+
+async def run_checklist(vlm: VLM, video: DecodedVideo, reg: RuleRegistry, s: Settings) -> tuple[list[Finding], dict]:
+    votes = await run_votes(vlm, video, s)
     kept = [f for f in agree(list(votes), s.checklist_agree_sec) if reg.get(f.rule_id)]
     stats = {
         "checklist_raw": [len(v) for v in votes],

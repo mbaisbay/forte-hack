@@ -54,6 +54,12 @@ class Settings:
     checklist_votes: int = field(default_factory=lambda: int(_env("CHECKLIST_VOTES", "2")))
     checklist_agree_sec: float = field(default_factory=lambda: float(_env("CHECKLIST_AGREE_SEC", "4")))
     gate_sec: float = field(default_factory=lambda: float(_env("GATE_SEC", "10")))
+    # v2: candidates from checklist votes (union) + scan (visible rules) -> focused re-check on dense frames.
+    recheck_max_frames: int = field(default_factory=lambda: int(_env("RECHECK_MAX_FRAMES", "32")))
+    recheck_native: bool = field(default_factory=lambda: _env("RECHECK_NATIVE", "1") == "1")
+    recheck_min_conf: float = field(default_factory=lambda: float(_env("RECHECK_MIN_CONF", "0.5")))
+    # Extra JSON merged into every model request, e.g. {"chat_template_kwargs": {"enable_thinking": false}}.
+    vlm_extra_body: str = field(default_factory=lambda: _env("VLM_EXTRA_BODY", ""))
 
     # Jury cutoff is 300 s end to end; keep margin for queueing and upload.
     job_budget_sec: float = field(default_factory=lambda: float(_env("JOB_BUDGET_SEC", "200")))

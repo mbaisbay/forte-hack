@@ -38,8 +38,9 @@ def assert_loopback(base_url: str) -> None:
 
 
 class LocalVLM:
-    def __init__(self, base_url: str, model: str, concurrency: int, timeout_sec: float):
+    def __init__(self, base_url: str, model: str, concurrency: int, timeout_sec: float, extra_body: dict | None = None):
         assert_loopback(base_url)
+        self._extra = extra_body or {}
         self.base_url = base_url.rstrip("/")
         self.model = model
         self._concurrency = concurrency
@@ -63,6 +64,7 @@ class LocalVLM:
                 "type": "json_schema",
                 "json_schema": {"name": "result", "schema": schema},
             },
+            **self._extra,
         }
         last_exc: Exception | None = None
         async with self._sem():
@@ -93,7 +95,8 @@ class MockVLM:
 
     async def chat_json(self, parts: list[dict], schema: dict, max_tokens: int) -> dict:
         props = schema.get("properties", {})
-        kind = "verify" if "status" in props else "checklist" if "services" in props else "observe"
+        kind = ("verify" if "status" in props else "checklist" if "services" in props
+                else "recheck" if "answer" in props else "observe")
         self.calls.append(kind)
         return self.responder(kind, parts)
 
@@ -103,4 +106,5 @@ def build_vlm(settings) -> Any:
         if not settings.allow_mock:
             raise VLMError("mock VLM requested but ALLOW_MOCK is not set")
         return MockVLM()
-    return LocalVLM(settings.vlm_base_url, settings.vlm_model, settings.vlm_concurrency, settings.vlm_timeout_sec)
+    extra = json.loads(settings.vlm_extra_body) if settings.vlm_extra_body else None
+    return LocalVLM(settings.vlm_base_url, settings.vlm_model, settings.vlm_concurrency, settings.vlm_timeout_sec, extra)

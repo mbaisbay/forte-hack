@@ -44,12 +44,19 @@ def load_labels(path: Path) -> dict[str, dict]:
         name, ts, verdict = row[:3]
         if not name:
             continue
-        lab = labels.setdefault(norm_id(name), {"violation": False, "times": [], "codes": []})
+        lab = labels.setdefault(norm_id(name), {"violation": False, "times": [], "codes": [], "events": []})
         if str(verdict).strip().lower().startswith("нарушение"):
             lab["violation"] = True
-            lab["times"].append(parse_time(ts))
-            codes = row[3] if len(row) > 3 else None
-            lab["codes"] += [c.strip() for c in str(codes or "").split(",") if c.strip() and c.strip() not in lab["codes"]]
+            t = parse_time(ts)
+            lab["times"].append(t)
+            codes = [c.strip() for c in str((row[3] if len(row) > 3 else None) or "").split(",") if c.strip()]
+            lab["codes"] += [c for c in codes if c not in lab["codes"]]
+            # Rows of the same clip at the same time are one event with the union of codes.
+            same = next((e for e in lab["events"] if e["t"] == t), None)
+            if same:
+                same["codes"] = sorted(set(same["codes"]) | set(codes))
+            else:
+                lab["events"].append({"t": t, "codes": sorted(codes)})
     for lab in labels.values():
         lab["times"] = sorted(t for t in lab["times"] if t is not None)
         lab["time"] = lab["times"][0] if lab["times"] else None
@@ -63,6 +70,20 @@ HOLDOUT = {"X-3", "X-11", "X-14", "X-19", "X-24", "X-26", "X-33", "X-34", "X-35"
 
 def holdout_ids(labels: dict[str, dict]) -> set[str]:
     return HOLDOUT & set(labels)
+
+
+EVENT_TOL_SEC = 5.0
+
+
+def match_events(preds: list[tuple[float, set]], truth: list[dict], tol: float = EVENT_TOL_SEC) -> int:
+    """One-to-one matching: a prediction matches at most one labelled event with a shared code within tol seconds."""
+    pairs = sorted((abs(pt - e["t"]), i, j) for i, (pt, pc) in enumerate(preds) for j, e in enumerate(truth)
+                   if e["t"] is not None and pc & set(e["codes"]) and abs(pt - e["t"]) <= tol)
+    used_p, used_t = set(), set()
+    for _, i, j in pairs:
+        if i not in used_p and j not in used_t:
+            used_p.add(i); used_t.add(j)
+    return len(used_p)
 
 
 def rule_codes(rules_path: Path) -> dict[str, set[str]]:
@@ -119,6 +140,7 @@ def main() -> None:
         outs = dict(zip(ids, pool.map(lambda i: run_clip(args.base, key, clips[i], 330), ids)))
 
     tp = fp = tn = fn = failed = type_hit = 0
+    ev_match = ev_pred = ev_true = clean_events = 0
     per_code: dict[str, list[int]] = {}  # code -> [clips, detected, detected with matching type]
     errs, secs, n_events = [], [], []
     details = {}
@@ -140,6 +162,11 @@ def main() -> None:
             meta_by_clip[i] = json.loads(meta_path.read_text())
             diag.setdefault(outcome, []).append(meta_by_clip[i])
         times = [v["timecode_sec"] for v in out["violations"]]
+        preds = [(v["timecode_sec"], codes_of.get(v["type"], set())) for v in out["violations"]]
+        ev_match += match_events(preds, lab["events"])
+        ev_pred += len(preds)
+        ev_true += len(lab["events"])
+        clean_events += 0 if lab["violation"] else len(preds)
         n_events.append(len(times))
         if lab["violation"]:
             pred_codes = set().union(*(codes_of.get(v["type"], set()) for v in out["violations"]))
@@ -167,6 +194,8 @@ def main() -> None:
     print(f"subset={args.subset} clips={n} parallel={args.parallel} (labels without video: {len(missing)})")
     print(f"video-level: TP={tp} FP={fp} TN={tn} FN={fn} failed/timeout={failed}")
     print(f"accuracy={pct(tp + tn, n)} recall={pct(tp, tp + fn)} precision={pct(tp, tp + fp)}")
+    print(f"events (one-to-one, same code, ±{EVENT_TOL_SEC:.0f}s): matched={ev_match} predicted={ev_pred} labelled={ev_true} "
+          f"precision={pct(ev_match, ev_pred)} recall={pct(ev_match, ev_true)} false_events_on_clean_clips={clean_events}")
     if tp:
         print(f"type match on TP: {type_hit}/{tp} clips have a predicted type whose code is in the label")
     for code, (n_c, det, typ) in sorted(per_code.items()):

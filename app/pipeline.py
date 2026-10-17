@@ -9,7 +9,7 @@ import logging
 import time
 from dataclasses import dataclass, field
 
-from app import checklist
+from app import checklist, recheck
 from app.config import Settings
 from app.media import DecodedVideo, Frame, b64
 from app.rules import RuleRegistry
@@ -29,6 +29,7 @@ class Candidate:
     observation: str
     status: str = "proposed"          # proposed | supported | not_supported | unclear
     evidence_ids: list[str] = field(default_factory=list)
+    sources: list[str] = field(default_factory=list)  # v2: which passes proposed it (checklist0/1, scan)
 
 
 def observe_schema(rule_ids: list[str]) -> dict:
@@ -140,10 +141,11 @@ def merge(cands: list[Candidate], gap: float) -> list[Candidate]:
         prev = merged[-1] if merged else None
         if prev and prev.rule_id == c.rule_id and c.start <= prev.end + gap:
             prev.end = max(prev.end, c.end)
+            prev.sources = sorted(set(prev.sources) | set(c.sources))
             if c.confidence > prev.confidence:
                 prev.key_frame_id, prev.observation, prev.confidence = c.key_frame_id, c.observation, c.confidence
         else:
-            merged.append(Candidate(**{**c.__dict__, "evidence_ids": list(c.evidence_ids)}))
+            merged.append(Candidate(**{**c.__dict__, "evidence_ids": list(c.evidence_ids), "sources": list(c.sources)}))
     return sorted(merged, key=lambda c: c.start)
 
 
@@ -187,6 +189,8 @@ def accepted(c: Candidate, s: Settings) -> bool:
 
 
 async def run(video: DecodedVideo, vlm: VLM, reg: RuleRegistry, s: Settings, deadline: float) -> tuple[list[Candidate], dict]:
+    if s.pipeline_mode == "v2":
+        return await run_v2(video, vlm, reg, s, deadline)
     observe_prompt = (s.prompts_dir / "observe.txt").read_text(encoding="utf-8")
     verify_prompt = (s.prompts_dir / "verify.txt").read_text(encoding="utf-8")
     stats: dict = {}
@@ -237,6 +241,70 @@ async def run(video: DecodedVideo, vlm: VLM, reg: RuleRegistry, s: Settings, dea
         stats["scan_kept_after_gate"] = len(scan_kept)
     kept = merge(scan_kept + [from_finding(f, video) for f in findings], s.merge_gap_sec)
     stats["accepted"] = len(kept)
+    return kept, stats
+
+
+def _evidence_around(video: DecodedVideo, frame_id: str, t: float) -> list[str]:
+    near = video.between(t - 1.0, t + 1.0)
+    picks = [near[0], video.by_id(frame_id), near[-1]] if near else [video.by_id(frame_id)]
+    return list(dict.fromkeys(fr.frame_id for fr in picks if fr))
+
+
+async def run_v2(video: DecodedVideo, vlm: VLM, reg: RuleRegistry, s: Settings, deadline: float) -> tuple[list[Candidate], dict]:
+    """Recall from checklist votes (union) and the scan; precision from one focused re-check per candidate."""
+    observe_prompt = (s.prompts_dir / "observe.txt").read_text(encoding="utf-8")
+    recheck_prompt = (s.prompts_dir / "recheck.txt").read_text(encoding="utf-8")
+    stats: dict = {"mode": "v2"}
+    t0 = time.monotonic()
+    windows = scan_windows(video, s)
+    observed, votes = await asyncio.gather(
+        asyncio.gather(*(observe_window(vlm, w, video, reg, observe_prompt) for w in windows)),
+        checklist.run_votes(vlm, video, s),
+    )
+    cands = []
+    for k, vote in enumerate(votes):
+        for f in vote:
+            if f.rule_id in recheck.UNREADABLE or reg.get(f.rule_id) is None:
+                continue
+            cands.append(Candidate(rule_id=f.rule_id, start=f.start if f.start is not None else f.t, end=f.t,
+                                   key_frame_id=f.frame_id, confidence=0.6, observation=checklist.OBS_RU[f.rule_id],
+                                   status="checklist", sources=[f"checklist{k}"]))
+    for c in (c for cs in observed for c in cs):
+        if c.rule_id in recheck.SCAN_RULES and c.confidence >= s.candidate_min_conf:
+            c.status, c.sources = "scan", ["scan"]
+            cands.append(c)
+    pool = merge(cands, s.merge_gap_sec)
+    pool.sort(key=lambda c: (-len(c.sources), -c.confidence))
+    stats.update(windows=len(windows), checklist_raw=[len(v) for v in votes], candidates=len(pool),
+                 candidate_rules=sorted({c.rule_id for c in pool}), pass1_sec=round(time.monotonic() - t0, 2))
+
+    t1 = time.monotonic()
+    todo = pool[: s.max_verify_calls]
+    kept: list[Candidate] = []
+    if todo and time.monotonic() + max(10.0, t1 - t0) < deadline:
+        answers = await asyncio.gather(*(recheck.ask(vlm, c.rule_id, c.start, c.end, video, recheck_prompt, s) for c in todo))
+        stats["recheck_answers"] = [[c.rule_id, a["answer"] if a else None, round(a["confidence"], 2) if a else None]
+                                    for c, a in zip(todo, answers)]
+        for c, a in zip(todo, answers):
+            if not a or not a["confirmed"]:
+                continue
+            key = video.by_id(a["frame_id"]) if a["frame_id"] else video.by_id(c.key_frame_id)
+            kept.append(Candidate(rule_id=c.rule_id, start=key.timestamp_sec, end=key.timestamp_sec,
+                                  key_frame_id=key.frame_id, confidence=a["confidence"],
+                                  observation=a["observation"] or c.observation, status="supported",
+                                  evidence_ids=_evidence_around(video, key.frame_id, key.timestamp_sec),
+                                  sources=c.sources))
+        stats["recheck_skipped"] = False
+    else:
+        # No time for re-checks: keep only what two independent passes agree on.
+        kept = [c for c in pool if len(c.sources) >= 2]
+        for c in kept:
+            c.evidence_ids = _evidence_around(video, c.key_frame_id, c.start)
+        stats["recheck_skipped"] = bool(pool)
+    stats["recheck_sec"] = round(time.monotonic() - t1, 2)
+    kept = merge(kept, s.merge_gap_sec)
+    stats["accepted"] = len(kept)
+    stats["final_intervals"] = [[round(c.start, 1), round(c.end, 1), "supported"] for c in kept]
     return kept, stats
 
 
