@@ -52,7 +52,7 @@ python src/eval_rules.py ../Каталог_правил_кассовые_опе�
   3. If it needs a new per-frame signal, add it in `detect.analyze` and put it into `F`.
   4. Re-run the policy regression.
 - `rules_llm.leaf_nodes` lists the leaves the LLM may map rules to. `client_fallback` is excluded on purpose.
-- **Keep the priority order:** no missed violations (recall) first, then few false alarms, then timecodes, then type. The case FAQ says a miss is unacceptable. `client_fallback` and `solo_cash` are recall safety nets; don't remove them without measuring.
+- **Keep the priority order:** no missed violations (recall) first, then few false alarms, then timecodes, then type. The case FAQ says a miss is unacceptable. `client_fallback` is a recall safety net; don't remove it without measuring. A cashier working alone is normal and must not be flagged by itself (product decision). What matters is that she leaves nothing behind: `cash_left`, `bag_left`, `safe_open`, `laptop_unlocked`.
 
 ## GPU and memory rules (12 GB)
 - Only `worker.py` touches models. Do not call `detect` or `rules_llm` from request handlers.
@@ -66,7 +66,8 @@ python src/eval_rules.py ../Каталог_правил_кассовые_опе�
 - `/api/ui/docs` marks suggestions whose (document number, paragraph) already exists in `rules.json` as `exists`, and the UI hides them.
 
 ## Measured baselines (40 training videos; update when you change things)
-- **Verdict:** recall 24/24. On precomputed features: precision 0.77, F2 0.945 with `solo_cash` on (0.83 / 0.960 with it off).
-- **Full service:** F2 0.952 on the originals (measured before `solo_cash` was added). On a simulated new angle, recall was 23/24 before `solo_cash`; it is expected to fix that miss (Х-44), see `../runs/solo_check.json`.
+- **Verdict on precomputed features:** recall 24/24, precision 0.83, accuracy 87.5%, F2 0.960.
+- **Full service:** F2 0.952 on the originals. On a simulated new angle, recall is 23/24.
+- **Known miss:** Х-44, mixed denominations by a cashier working alone. It isn't visible to the models and is deliberately not flagged.
 - **Rule extraction:** 24/24 paragraphs, 10/12 visible rules recognised, 4/5 check mappings, 90 s per document.
 - **Experiment history:** `../runs/journal.md` and `../final_results.md`.

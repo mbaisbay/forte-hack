@@ -53,15 +53,6 @@ def events(F, tree):
         if on("client_fallback") and len(ev) == k0:
             add("client_fallback", t_hand)
 
-    if on("solo_cash") and not (np.mean(two) >= N["client_session"]["params"]["T_client"]):
-        qc = [bool(q["cash"] or q["counting"]) for q in Q]
-        if np.mean(qc) >= P("solo_cash", "T_solo"):
-            best, cur, bs = 0, 0, 0
-            for i, c in enumerate(qc):
-                cur = cur + 1 if c else 0
-                if cur > best: best, bs = cur, i - cur + 1
-            add("solo_cash", ts[bs])
-
     if on("personal_items"):
         pers = [bool(d["personal_item"]) for d in D]
         if longest(pers) / len(ts) >= P("personal_items", "T_pers"):
@@ -78,6 +69,8 @@ def events(F, tree):
     if on("cashier_left") and n[-1] == 0 and t_empty is not None:
         if on("laptop_unlocked") and scr >= P("laptop_unlocked", "on_min") and not (sr is not None and sr < P("laptop_unlocked", "T_lock")):
             add("laptop_unlocked", t_leave or t_empty)
+        if on("cash_left") and sum(bool(Q[i]["cash"] or Q[i]["counting"]) for i in range(len(n)) if n[i] == 0) >= P("cash_left", "min_frames"):
+            add("cash_left", t_leave or t_empty)
         if on("bag_left") and sum(q["cash_bag"] for q in Q) >= P("bag_left", "bag"):
             add("bag_left", t_leave or t_empty)
 

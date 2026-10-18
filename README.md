@@ -23,7 +23,7 @@ Not in the repository (hackathon data rules and size): videos, labels, organiser
 | Full service, original videos | 24/24 | 0.80 | 85.0% | 0.952 |
 | Full service, simulated new camera angle | 23/24 | 0.79 | 82.5% | 0.920 |
 
-The newer "cashier alone with cash" check trades 2 extra false alarms (F2 0.945 on precomputed features) for catching mixed-denomination cases from any angle.
+A cashier working alone is not flagged by itself. The checks look at what she leaves behind (cash, bag, open safe, unlocked laptop).
 
 **Speed:** about 53 s per video on average, at most about 100 s; the jury limit is 5 minutes.
 
