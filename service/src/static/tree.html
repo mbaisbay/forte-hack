@@ -1,0 +1,76 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Дерево проверок</title>
+<link rel="stylesheet" href="/static/common.css">
+<style>
+  .node { border:1px solid var(--line); border-radius:10px; padding:12px; margin:8px 0; background:var(--card); }
+  .node.off { opacity:.55; }
+  .kids { margin-left:26px; border-left:2px solid var(--line); padding-left:12px; }
+  .node .hd { display:flex; gap:10px; align-items:center; flex-wrap:wrap; }
+  .node label { font-size:13px; color:var(--muted); }
+  .params { display:flex; gap:12px; flex-wrap:wrap; margin:6px 0; } .params input { width:90px; }
+  .flow { font-size:13px; color:var(--muted); }
+  .node:target { outline:2px solid var(--acc); }
+  .sugg { border:1px dashed var(--warn); border-radius:8px; padding:8px 10px; margin:6px 0; }
+</style>
+</head>
+<body>
+<nav><b>Кассовая дисциплина</b><a href="/">Видео</a><a href="/rules">Правила</a><a class="on" href="/tree">Дерево проверок</a></nav>
+<main>
+  <h1>Дерево проверок</h1>
+  <p class="sub">По этому дереву сервис принимает решение. Каждая проверка смотрит на признаки, которые модели извлекают из кадров (люди, предметы на столе, сейф, экран ноутбука, дверь). Видео получает вердикт «нарушение», если сработала хотя бы одна включённая проверка; вложенные проверки работают, только если включён и сработал родитель. Изменения применяются к следующим анализам — для уже загруженных видео нажмите «Перезапустить анализ».</p>
+
+  <div class="card" id="sgc" hidden><h2>Предложения LLM: связать новые правила с проверками</h2><div id="sugg"></div></div>
+
+  <div class="card"><h2>Общие параметры</h2><div class="params" id="gp"></div>
+    <div class="flow">person_min_y — нижний край рамки человека (доля высоты кадра), ниже которого человек считается у стола; отсекает людей за стеклом. Для другой камеры его стоит проверить в первую очередь. person_conf — минимальная уверенность детектора людей.</div></div>
+
+  <div id="tree"></div>
+
+  <div class="card"><h2>Правила без автоматической проверки</h2><div id="unmapped" class="muted"></div></div>
+
+  <div class="row" style="position:sticky;bottom:0;background:var(--bg);padding:10px 0"><button id="save">Сохранить дерево</button><button class="sec" onclick="load()">Отменить изменения</button><span id="st" class="muted"></span></div>
+</main>
+<script>
+const $ = s => document.querySelector(s);
+const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const api = async (u, o) => { const r = await fetch(u, o); if (!r.ok) throw new Error(await r.text()); return r.json(); };
+let T, R, S = [];
+const rule = id => R.find(r => r.id === id);
+
+function nodeHtml(n) {
+  const kids = T.nodes.filter(k => k.parent === n.id), i = T.nodes.indexOf(n);
+  return `<div class="node ${n.enabled ? '' : 'off'}" id="${esc(n.id)}"><div class="hd">
+      <label style="color:var(--ink)"><input type="checkbox" ${n.enabled ? 'checked' : ''} onchange="T.nodes[${i}].enabled=this.checked;draw()"> <b>${esc(n.title)}</b></label><span class="chip">${esc(n.id)}</span></div>
+    <label>Что проверяется</label><textarea onchange="T.nodes[${i}].observe=this.value">${esc(n.observe)}</textarea>
+    ${Object.keys(n.params).length ? `<div class="params">${Object.entries(n.params).map(([k, v]) => `<label>${esc(k)}<br><input type="number" step="any" value="${v}" onchange="T.nodes[${i}].params['${k}']=parseFloat(this.value)"></label>`).join('')}</div>` : ''}
+    ${kids.length ? '' : `<label>Правила, на которые ссылается эта проверка (тип нарушения = первое)</label><div>${n.rule_ids.map((r, j) => `<span class="chip">${esc(r)} ${esc(rule(r)?.title || '⚠ нет в каталоге')} <a href="#" onclick="T.nodes[${i}].rule_ids.splice(${j},1);draw();return false">×</a></span>`).join('')}
+        <select onchange="if(this.value){T.nodes[${i}].rule_ids.push(this.value);draw()}"><option value="">+ правило</option>${R.filter(r => !n.rule_ids.includes(r.id)).map(r => `<option value="${esc(r.id)}">${esc(r.id)} — ${esc(r.title)}</option>`).join('')}</select></div>
+      <label>Описание для проверяющего (что видно и почему это нарушение)</label><textarea onchange="T.nodes[${i}].message=this.value">${esc(n.message)}</textarea>`}
+    ${kids.length ? `<div class="kids">${kids.map(nodeHtml).join('')}</div>` : ''}</div>`;
+}
+function draw() {
+  $('#gp').innerHTML = Object.entries(T.params).map(([k, v]) => `<label>${esc(k)}<br><input type="number" step="any" value="${v}" onchange="T.params['${k}']=parseFloat(this.value)"></label>`).join('');
+  $('#tree').innerHTML = T.nodes.filter(n => !n.parent).map(nodeHtml).join('');
+  const used = new Set(T.nodes.flatMap(n => n.rule_ids));
+  $('#unmapped').innerHTML = R.filter(r => !used.has(r.id)).map(r => `<span class="chip">${esc(r.id)} ${esc(r.title)}</span>`).join('') || 'все правила связаны с проверками';
+  const todo = S.filter(s => !T.nodes.find(n => n.id === s.node)?.rule_ids.includes(s.rule_id));
+  $('#sgc').hidden = !todo.length;
+  $('#sugg').innerHTML = todo.map(s => `<div class="sugg"><b>${esc(s.rule_id)}</b> ${esc(s.title)} → проверка «${esc(T.nodes.find(n => n.id === s.node)?.title || s.node)}»
+    <div class="muted" style="font-size:13px">${esc(s.check)}</div><button class="sec" onclick="apply('${esc(s.rule_id)}','${esc(s.node)}')">Связать</button></div>`).join('');
+}
+function apply(rid, node) { T.nodes.find(n => n.id === node).rule_ids.push(rid); draw(); $('#st').textContent = 'Не забудьте сохранить'; }
+async function load() {
+  [T, R, S] = await Promise.all([api('/api/ui/tree'), api('/api/ui/rules'), api('/api/ui/mapping_suggestions')]);
+  draw(); $('#st').textContent = '';
+  if (location.hash) document.getElementById(location.hash.slice(1))?.scrollIntoView();
+}
+$('#save').onclick = async () => {
+  try { await api('/api/ui/tree', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(T) }); $('#st').textContent = 'Сохранено'; S = await api('/api/ui/mapping_suggestions'); draw(); }
+  catch (e) { $('#st').textContent = 'Ошибка: ' + e.message; }
+};
+load();
+</script>
+</body></html>

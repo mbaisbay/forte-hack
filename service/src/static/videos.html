@@ -1,0 +1,149 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Проверка видео</title>
+<link rel="stylesheet" href="/static/common.css">
+<style>
+  .drop { border:2px dashed var(--line); border-radius:12px; padding:22px; text-align:center; cursor:pointer; transition:.15s; }
+  .drop.over { border-color:var(--acc); background:var(--chip); }
+  .drop b { display:block; font-size:16px; margin-bottom:4px; }
+  .banner { border-radius:10px; padding:12px 14px; font-size:17px; font-weight:600; margin:12px 0; }
+  .banner.bad { background:color-mix(in srgb, var(--bad) 12%, transparent); } .banner.ok { background:color-mix(in srgb, var(--ok) 12%, transparent); }
+  .banner.wait { background:var(--chip); font-weight:500; }
+  .banner small { display:block; font-weight:400; font-size:13px; color:var(--muted); }
+  video { width:100%; border-radius:8px; background:#000; max-height:400px; }
+  .v { border:1px solid var(--line); border-radius:10px; padding:12px; margin-top:10px; }
+  .v .hd { display:flex; gap:8px; align-items:baseline; flex-wrap:wrap; }
+  .tcb { font-variant-numeric:tabular-nums; background:var(--chip); border:0; color:var(--ink); padding:2px 9px; border-radius:12px; font-size:13px; }
+  .shots { display:flex; gap:6px; margin:8px 0; } .shots figure { margin:0; width:33%; } .shots img { width:100%; border-radius:6px; cursor:zoom-in; display:block; }
+  .shots figcaption { font-size:12px; color:var(--muted); text-align:center; }
+  .seg { display:inline-flex; border:1px solid var(--line); border-radius:8px; overflow:hidden; }
+  .seg button { background:transparent; color:var(--ink); border-radius:0; padding:5px 10px; border-right:1px solid var(--line); font-size:13px; }
+  .seg button:last-child { border-right:0; } .seg button.sel { background:var(--ink); color:var(--bg); }
+  .step { font-size:13px; color:var(--muted); margin:14px 0 4px; font-weight:600; text-transform:uppercase; letter-spacing:.03em; }
+  #lb { position:fixed; inset:0; background:rgba(0,0,0,.85); display:none; align-items:center; justify-content:center; z-index:9; cursor:zoom-out; }
+  #lb img { max-width:95vw; max-height:90vh; border-radius:8px; }
+  .toast { position:fixed; bottom:18px; left:50%; transform:translateX(-50%); background:var(--ink); color:var(--bg); padding:8px 16px; border-radius:8px; opacity:0; transition:.2s; pointer-events:none; }
+  .toast.on { opacity:1; }
+  .empty { text-align:center; padding:30px 10px; color:var(--muted); }
+</style>
+</head>
+<body>
+<nav><b>Кассовая дисциплина</b><a class="on" href="/">Видео</a><a href="/rules">Правила</a><a href="/tree">Дерево проверок</a></nav>
+<main>
+  <h1>Проверка видео</h1>
+  <p class="sub">Загрузите запись с камеры кассы — сервис найдёт возможные нарушения, покажет кадры и пункт правил. Всё работает локально. Результат — подсказка для проверяющего, а не окончательное заключение.</p>
+  <label class="drop card" id="drop"><input type="file" id="f" accept="video/*,.mov" hidden>
+    <b>Перетащите видео сюда или нажмите, чтобы выбрать</b><span class="muted">.mov / .mp4 · обычно анализ занимает около минуты</span></label>
+  <div class="grid2">
+    <div class="card"><h2>Загруженные видео</h2><table><thead><tr><th>Файл</th><th>Результат</th><th>Проверено</th></tr></thead><tbody id="list"></tbody></table></div>
+    <div id="detail"><div class="card empty">Выберите видео слева или загрузите новое</div></div>
+  </div>
+</main>
+<div id="lb" onclick="this.style.display='none'"><img alt="кадр"></div>
+<div class="toast" id="toast"></div>
+<script>
+const $ = s => document.querySelector(s);
+const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const api = async (u, o) => { const r = await fetch(u, o); if (!r.ok) throw new Error(await r.text()); return r.json(); };
+const mmss = t => { t = Math.max(0, +t || 0); return `${Math.floor(t / 60)}:${String(Math.floor(t % 60)).padStart(2, '0')}`; };
+const toast = m => { const el = $('#toast'); el.textContent = m; el.classList.add('on'); setTimeout(() => el.classList.remove('on'), 1800); };
+let cur = null, rules = [], checks = {}, vids = [], timer = null, shown = null, L = null;
+
+function badge(v) {
+  if (v.status === 'processing') return '<span class="warn">⏳ анализ…</span>';
+  if (v.status === 'failed') return '<span class="bad">ошибка</span>';
+  return v.verdict === 'violation' ? `<span class="bad">⚠ ${v.n} наруш.</span>` : '<span class="ok">✓ нарушений нет</span>';
+}
+async function list() {
+  vids = await api('/api/ui/videos');
+  $('#list').innerHTML = vids.map(v => `<tr class="click ${v.id === cur ? 'sel' : ''}" data-id="${v.id}">
+    <td>${esc(v.filename)}<div class="muted tc" style="font-size:12px">${new Date(v.created * 1000).toLocaleString('ru')}</div></td>
+    <td>${badge(v)}</td><td>${v.label ? '✓' : '<span class="muted">—</span>'}</td></tr>`).join('')
+    || '<tr><td colspan="3" class="empty">Пока ничего не загружено</td></tr>';
+  document.querySelectorAll('#list tr[data-id]').forEach(tr => tr.onclick = () => show(tr.dataset.id));
+  clearTimeout(timer);
+  if (vids.some(v => v.status === 'processing')) timer = setTimeout(tick, 3000);
+}
+async function tick() {
+  await list();
+  if (!cur) return;
+  const v = vids.find(x => x.id === cur);
+  if (v && v.status !== shown) show(cur); else if (v?.status === 'processing') waitText(v);
+}
+function waitText(v) {
+  const el = $('#wait'); if (!el) return;
+  const ahead = vids.filter(x => x.status === 'processing' && x.created < v.created).length;
+  el.innerHTML = `⏳ Идёт анализ — подождите, страница обновится сама<small>прошло ${mmss(Date.now() / 1000 - v.created)}${ahead ? ` · в очереди перед этим видео: ${ahead}` : ''}</small>`;
+}
+
+async function upload(file) {
+  if (!file) return;
+  const fd = new FormData(); fd.append('file', file); toast('Загрузка…');
+  try { const { id } = await api('/api/ui/videos', { method: 'POST', body: fd }); cur = id; await list(); show(id); toast('Видео загружено, идёт анализ'); }
+  catch (e) { toast('Ошибка загрузки'); }
+}
+const drop = $('#drop');
+$('#f').onchange = e => upload(e.target.files[0]);
+['dragenter', 'dragover'].forEach(k => drop.addEventListener(k, e => { e.preventDefault(); drop.classList.add('over'); }));
+['dragleave', 'drop'].forEach(k => drop.addEventListener(k, e => { e.preventDefault(); drop.classList.remove('over'); }));
+drop.addEventListener('drop', e => upload(e.dataTransfer.files[0]));
+
+async function show(id) {
+  cur = id; const v = await api('/api/ui/videos/' + id); shown = v.status;
+  document.querySelectorAll('#list tr').forEach(tr => tr.classList.toggle('sel', tr.dataset.id === id));
+  let h = `<div class="card"><h2>${esc(v.filename)}</h2><video id="vid" src="/api/ui/videos/${id}/file" controls preload="metadata"></video>`;
+  if (v.status === 'processing') { $('#detail').innerHTML = h + '<div class="banner wait" id="wait"></div></div>'; waitText(vids.find(x => x.id === id) || v); return; }
+  if (v.status === 'failed') {
+    $('#detail').innerHTML = h + `<div class="banner bad">Обработка не удалась<small>Попробуйте ещё раз; если повторяется — проверьте формат файла.</small></div>
+      <details class="muted"><summary>Техническая ошибка</summary><pre style="white-space:pre-wrap;font-size:12px">${esc(v.error)}</pre></details><button onclick="rerun()">Повторить анализ</button></div>`; return;
+  }
+  const r = v.result; L = v.label || {}; L.violations = L.violations || {}; L.missed = L.missed || [];
+  const bad = r.verdict === 'violation';
+  h += `<div class="banner ${bad ? 'bad' : 'ok'}">${bad ? `⚠ Обнаружены признаки возможных нарушений: ${r.violations.length}` : '✓ Нарушение не обнаружено'}
+    <small>анализ занял ${Math.round(r.debug?.timing_sec?.total ?? 0)} с · нажмите на время или кадр, чтобы перейти к моменту в видео</small></div>`;
+  r.violations.forEach((x, i) => {
+    const s = L.violations[i];
+    h += `<div class="v"><div class="hd"><button class="tcb" onclick="seek(${x.timecode_sec})">▶ ${mmss(x.timecode_sec)}</button><b>${esc(x.type)}</b></div>
+      <div style="margin-top:4px">${esc(x.description)}</div>
+      <div class="muted" style="font-size:13px">Основание: ${esc(x.source || 'не указано')} · сработала проверка «${esc(checks[x.check] || x.check)}»</div>
+      <div class="shots">${x.evidence_frames.map(f => `<figure><img src="data:image/jpeg;base64,${f.image_base64}" alt="кадр ${mmss(f.timestamp_sec)}" onclick="zoom(this.src)"><figcaption><a href="#" onclick="seek(${f.timestamp_sec});return false">${mmss(f.timestamp_sec)}</a></figcaption></figure>`).join('')}</div>
+      <div class="row" style="font-size:13px">Верно ли?
+        <span class="seg">${[['ok', '✓ Да'], ['wrong_type', 'Не тот тип / время'], ['false', '✗ Ложное']].map(([k, t]) => `<button class="${s === k ? 'sel' : ''}" onclick="mark(${i},'${k}')">${t}</button>`).join('')}</span></div></div>`;
+  });
+  h += `<div class="step">Разметка проверяющего</div>
+    <div class="row">Итог по видео: <span class="seg" id="lv">${[['violation', 'Нарушение есть'], ['no_violation', 'Нарушения нет']].map(([k, t]) => `<button class="${L.verdict === k ? 'sel' : ''}" onclick="setVerdict('${k}')">${t}</button>`).join('')}</span></div>
+    <div class="step">Пропущенные нарушения</div><div id="missed"></div>
+    <div class="row" style="margin-top:6px"><button class="sec" onclick="$('#mt').value=($('#vid').currentTime||0).toFixed(1)">⏱ текущий момент</button>
+      <input id="mt" type="number" step="0.1" min="0" placeholder="сек" style="width:80px">
+      <select id="mr" style="max-width:260px">${rules.map(x => `<option value="${esc(x.id)}">${esc(x.title)} (${esc(x.id)})</option>`).join('')}</select>
+      <input id="mn" placeholder="что произошло"><button class="sec" onclick="addMissed()">+ Добавить</button></div>
+    <div class="step">Комментарий</div><textarea id="note" placeholder="необязательно">${esc(L.note || '')}</textarea>
+    <div class="row" style="margin-top:10px"><button onclick="saveLabel()">Сохранить разметку</button>
+      <button class="sec" onclick="rerun()" title="после изменения дерева проверок">↻ Перепроверить</button></div></div>`;
+  $('#detail').innerHTML = h; drawMissed();
+}
+function seek(t) { const el = $('#vid'); if (el) { el.currentTime = t; el.play(); el.scrollIntoView({ block: 'nearest', behavior: 'smooth' }); } }
+function zoom(src) { $('#lb img').src = src; $('#lb').style.display = 'flex'; }
+function mark(i, s) { L.violations[i] = L.violations[i] === s ? undefined : s; saveLabel(true); }
+function setVerdict(k) { L.verdict = L.verdict === k ? null : k; saveLabel(true); }
+function drawMissed() {
+  $('#missed').innerHTML = L.missed.map((m, i) => `<div class="row" style="font-size:14px"><button class="tcb" onclick="seek(${m.t})">▶ ${mmss(m.t)}</button>${esc((rules.find(r => r.id === m.rule_id) || {}).title || m.rule_id)} <span class="muted">${esc(m.note)}</span>
+    <a href="#" onclick="L.missed.splice(${i},1);saveLabel(true);return false">удалить</a></div>`).join('') || '<div class="muted" style="font-size:14px">нет — если модель что-то пропустила, отметьте момент ниже</div>';
+}
+function addMissed() { const t = parseFloat($('#mt').value); if (isNaN(t)) { toast('Укажите время'); return; } L.missed.push({ t, rule_id: $('#mr').value, note: $('#mn').value }); saveLabel(true); }
+async function saveLabel(quick) {
+  const n = $('#note'); if (n) L.note = n.value;
+  await api(`/api/ui/videos/${cur}/label`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(L) });
+  toast('Разметка сохранена'); await list(); if (quick) show(cur);
+}
+async function rerun() { await api(`/api/ui/videos/${cur}/rerun`, { method: 'POST' }); toast('Анализ запущен заново'); await list(); show(cur); }
+
+(async () => {
+  const [rs, tree] = await Promise.all([api('/api/ui/rules'), api('/api/ui/tree')]);
+  rules = rs; tree.nodes.forEach(n => checks[n.id] = n.title);
+  await list(); const first = document.querySelector('#list tr[data-id]'); if (first) show(first.dataset.id);
+})();
+</script>
+</body></html>

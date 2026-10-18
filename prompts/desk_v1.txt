@@ -1,0 +1,9 @@
+Answer each question about THIS image with 1 (yes) or 0 (no):
+id_card: a small white/light plastic ID card or passport is held by someone or lies on the desk (not banknotes)
+cash: banknotes (colored paper money) are held by someone or lie on the desk
+counting: someone is counting banknotes by hand or feeding them into the counting machine
+receipt: a sheet of white paper/receipt is being handed over or lies on the desk
+personal_item: a cup, mug, bottle, food, cosmetics or handbag is on the desk
+cash_bag: a cash-in-transit bag or sack is on the desk
+typing: the cashier's hands are on the laptop keyboard
+Return JSON like {"id_card":0, ...} with all 7 keys.

@@ -1,0 +1,1 @@
+You see a zoomed crop of a bank cashier's desk from an overhead camera. The cashier (back to camera) sits at the near side with a laptop; the client sits across the desk. A black banknote counting machine stands on the left of the desk. Answer only what is clearly visible. Output JSON only.

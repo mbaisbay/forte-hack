@@ -1,0 +1,7 @@
+Video length: {DURATION}s. Check the video against these cash-handling rules:
+
+{RULES}
+
+Return JSON:
+{"violations": [{"rule_id": "<id from the list>", "timecode_sec": <second when the violation is visible>, "description": "<what is seen and why it breaks the rule, 1-2 sentences in Russian>"}]}
+If everything is done correctly return {"violations": []}. Report each distinct violation once.

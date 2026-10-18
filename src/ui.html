@@ -1,0 +1,62 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Проверка кассовой дисциплины</title>
+<style>
+  :root { --bg:#f6f7f9; --card:#fff; --ink:#1b1f24; --muted:#5b6470; --line:#dde1e6; --ok:#1f7a3a; --bad:#b42318; --acc:#c8102e; }
+  @media (prefers-color-scheme: dark) { :root { --bg:#14171b; --card:#1d2127; --ink:#e8eaed; --muted:#9aa3ad; --line:#2d333b; --ok:#4cc27a; --bad:#ff6b5b; } }
+  body { margin:0; font:15px/1.5 system-ui, sans-serif; background:var(--bg); color:var(--ink); }
+  main { max-width:900px; margin:0 auto; padding:24px 16px; }
+  h1 { font-size:22px; margin:0 0 4px; } p.sub { color:var(--muted); margin:0 0 20px; }
+  .card { background:var(--card); border:1px solid var(--line); border-radius:10px; padding:16px; margin-bottom:16px; }
+  input[type=file] { max-width:100%; } button { background:var(--acc); color:#fff; border:0; border-radius:8px; padding:8px 16px; font-size:15px; cursor:pointer; }
+  button:disabled { opacity:.5; cursor:default; }
+  .verdict { font-size:20px; font-weight:600; } .ok { color:var(--ok); } .bad { color:var(--bad); }
+  .v { border-top:1px solid var(--line); padding-top:12px; margin-top:12px; display:grid; grid-template-columns:200px 1fr; gap:14px; }
+  .v img { width:100%; border-radius:6px; } .tc { font-variant-numeric:tabular-nums; color:var(--muted); }
+  .src { color:var(--muted); font-size:13px; }
+  @media (max-width:560px) { .v { grid-template-columns:1fr; } }
+</style>
+</head>
+<body><main>
+  <h1>Проверка кассовой дисциплины по видео</h1>
+  <p class="sub">Загрузите запись (.mov). Сервис отметит возможные нарушения, таймкод, кадр-доказательство и пункт правил. Всё работает локально.</p>
+  <div class="card">
+    <input id="key" placeholder="API-ключ" style="margin-bottom:8px;width:240px"><br>
+    <input type="file" id="f" accept="video/*"> <button id="go">Проверить</button>
+    <div id="status" class="src" style="margin-top:8px"></div>
+  </div>
+  <div id="out"></div>
+</main>
+<script>
+const $ = s => document.querySelector(s);
+try { $('#key').value = localStorage.getItem('apikey') || ''; } catch (e) {}
+$('#go').onclick = async () => {
+  const file = $('#f').files[0]; if (!file) return;
+  const key = $('#key').value; try { localStorage.setItem('apikey', key); } catch (e) {}
+  $('#go').disabled = true; $('#out').innerHTML = ''; $('#status').textContent = 'Загрузка…';
+  const fd = new FormData(); fd.append('file', file);
+  const r = await fetch('/api/v1/analyze', { method: 'POST', body: fd, headers: { 'X-API-Key': key } });
+  if (!r.ok) { $('#status').textContent = 'Ошибка: ' + r.status; $('#go').disabled = false; return; }
+  const { job_id } = await r.json(); const t0 = Date.now();
+  const poll = async () => {
+    const j = await (await fetch('/api/v1/jobs/' + job_id, { headers: { 'X-API-Key': key } })).json();
+    if (j.status === 'processing') { $('#status').textContent = 'Анализ… ' + Math.round((Date.now() - t0) / 1000) + ' с'; return setTimeout(poll, 2000); }
+    $('#go').disabled = false;
+    if (j.status === 'failed') { $('#status').textContent = 'Обработка не удалась'; return; }
+    $('#status').textContent = 'Готово за ' + Math.round((Date.now() - t0) / 1000) + ' с';
+    const bad = j.verdict === 'violation';
+    let h = `<div class="card"><div class="verdict ${bad ? 'bad' : 'ok'}">${bad ? 'Обнаружены признаки возможных нарушений' : 'Нарушение не обнаружено'}</div>`;
+    for (const v of j.violations) {
+      const img = v.evidence_frames?.[0]?.image_base64;
+      h += `<div class="v">${img ? `<img src="data:image/jpeg;base64,${img}" alt="кадр ${v.timecode_sec} с">` : '<div></div>'}
+        <div><b>${v.type}</b> <span class="tc">· ${v.timecode_sec} с</span><div>${v.description}</div>
+        <div class="src">Основание: ${v.source} (${v.rule_id})</div></div></div>`;
+    }
+    $('#out').innerHTML = h + '</div>';
+  };
+  poll();
+};
+</script>
+</body></html>

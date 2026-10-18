@@ -1,0 +1,21 @@
+{
+ "model": "models/gemma-3-12b-it-bnb4",
+ "quant": "none",
+ "mode": "state",
+ "fps": 1,
+ "max_frames": 60,
+ "width": 448,
+ "overlay": false,
+ "state_system": "state_system_v1.txt",
+ "state_prompt": "state_v1.txt",
+ "batch": 4,
+ "state_tokens": 160,
+ "thresholds": {
+  "smooth": 1,
+  "min_frames": 2,
+  "personal_frames": 3,
+  "door_frames": 4,
+  "id_grace": 1
+ },
+ "dedup_sec": 3
+}

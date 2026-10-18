@@ -1,0 +1,7 @@
+Video length: {DURATION}s. Check ONLY this rule:
+
+{RULE}
+
+Return JSON:
+{"violation": true|false, "confidence": <0..1>, "timecode_sec": <second when it is visible, or null>, "description": "<what is seen, 1-2 sentences in Russian>"}
+Answer false if the situation of the rule does not occur in the video or the cashier acts correctly.

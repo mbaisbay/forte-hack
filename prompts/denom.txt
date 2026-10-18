@@ -1,0 +1,3 @@
+Look at the banknotes in this image.
+mixed: banknotes of clearly different colors/denominations are held or stacked together in one pile (1) or not / no banknotes (0)
+Return JSON like {"mixed":0}.

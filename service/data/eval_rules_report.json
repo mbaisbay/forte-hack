@@ -1,0 +1,42 @@
+{
+ "model": "Qwen3-8B",
+ "ref_paragraphs": 12,
+ "seconds": 90,
+ "paragraphs_in_doc": 24,
+ "extracted": 24,
+ "coverage": 1.0,
+ "visual_recall_vs_ours": 0.83,
+ "visual_precision_vs_ours": 0.59,
+ "node_mapping": "4/5",
+ "missed": [],
+ "visual_not_in_ours": [
+  [
+   "231",
+   "107"
+  ],
+  [
+   "231",
+   "25"
+  ],
+  [
+   "231",
+   "31"
+  ],
+  [
+   "231",
+   "32"
+  ],
+  [
+   "231",
+   "33"
+  ],
+  [
+   "231",
+   "35"
+  ],
+  [
+   "231",
+   "42"
+  ]
+ ]
+}

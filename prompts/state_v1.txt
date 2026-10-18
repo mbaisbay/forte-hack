@@ -1,0 +1,14 @@
+Answer each question about THIS frame with 1 (yes) or 0 (no):
+cashier_in_room: the cashier is inside the room
+cashier_at_desk: the cashier is sitting or standing at their workplace behind the desk
+client_present: a client/courier (not the cashier) is inside the room
+outsider_cashier_side: someone other than the cashier is on the cashier's side of the desk or next to the safe
+door_open: the glass door of the room is open
+laptop_screen_on: the laptop is open with a lit screen
+cash_on_desk: banknotes or cash bundles lie on the desk
+safe_open: the safe door is open
+personal_item: a cup, mug, bottle, food or handbag is on the desk
+id_document: an ID card, passport or phone with ID is being shown or lies on the desk
+counting_cash: someone is counting banknotes by hand or the counting machine is being used
+cash_bag: a cash-in-transit bag/sack is visible
+Return JSON like {"cashier_in_room":1, ...} with all 12 keys.

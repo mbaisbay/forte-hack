@@ -1,0 +1,133 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Правила</title>
+<link rel="stylesheet" href="/static/common.css">
+<style>
+  .rule { border-top:1px solid var(--line); padding:10px 0; } .rule:first-child { border-top:0; }
+  .rule .hd { display:flex; gap:8px; align-items:baseline; flex-wrap:wrap; }
+  .edit label { display:block; font-size:13px; color:var(--muted); margin-top:6px; }
+  .edit input { width:100%; }
+  .sg { border:1px solid var(--line); border-radius:8px; padding:10px; margin:8px 0; }
+  .sg.accepted { border-color:var(--ok); } .sg.rejected { opacity:.5; }
+  .kv { display:grid; grid-template-columns:repeat(auto-fit,minmax(150px,1fr)); gap:8px; }
+  .flow3 { display:grid; grid-template-columns:repeat(auto-fit,minmax(220px,1fr)); gap:10px; font-size:14px; }
+  .flow3 div { background:var(--chip); border-radius:8px; padding:10px; } .flow3 b { display:block; margin-bottom:4px; }
+  .how { font-size:13px; background:var(--chip); border-radius:8px; padding:6px 10px; margin-top:6px; }
+  .kv div { background:var(--chip); border-radius:8px; padding:8px 10px; } .kv b { display:block; font-size:20px; }
+</style>
+</head>
+<body>
+<nav><b>Кассовая дисциплина</b><a href="/">Видео</a><a class="on" href="/rules">Правила</a><a href="/tree">Дерево проверок</a></nav>
+<main>
+  <h1>Каталог правил</h1>
+  <p class="sub">Правила, на которые ссылаются найденные нарушения: тип нарушения и нормативный источник в ответе сервиса берутся отсюда.</p>
+  <div class="card"><h2>Как правило превращается в найденное нарушение</h2>
+    <div class="flow3"><div><b>1. Модели смотрят на кадры</b>Раз в секунду отвечают на простые вопросы: сколько людей у стола, есть ли на столе деньги, документ, личные вещи, сумка; открыт ли сейф; горит ли экран; изменилась ли сцена (дверь).</div>
+    <div><b>2. Проверка срабатывает</b>Проверка из <a href="/tree">дерева</a> складывает ответы в событие. Например: «у стола клиент, деньги на столе, документ не появлялся» → сработала проверка «Наличные без документа».</div>
+    <div><b>3. Правило даёт тип и источник</b>Каждая проверка ссылается на правила этого каталога. Первое правило — тип нарушения в ответе, все — в поле «Основание».</div></div>
+    <p class="muted" style="margin:10px 0 0;font-size:13px">Правило с пометкой «нет автоматической проверки» сервис сам не найдёт: его можно привязать к существующей проверке в дереве или отмечать вручную при разметке видео. Новый документ: загрузите ниже → LLM предложит правила → вы принимаете → в дереве привязываете их к проверкам.</p></div>
+
+  <div class="card">
+    <h2>Добавить документ</h2>
+    <div class="row"><input type="file" id="df" accept=".pdf,.docx,.txt,.md"><button id="dgo">Извлечь правила</button><span id="dst" class="muted"></span></div>
+    <div id="docs" style="margin-top:10px"></div>
+  </div>
+
+  <div class="card" id="evalc" hidden><h2>Проверка извлечения на нашем каталоге</h2><div id="eval"></div></div>
+
+  <div class="card">
+    <div class="row" style="justify-content:space-between"><h2 style="margin:0">Правила (<span id="cnt"></span>)</h2><button class="sec" onclick="edit(-1)">+ Новое правило</button></div>
+    <div id="rules" style="margin-top:8px"></div>
+  </div>
+</main>
+<script>
+const $ = s => document.querySelector(s);
+const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const api = async (u, o) => { const r = await fetch(u, o); if (!r.ok) throw new Error(await r.text()); return r.json(); };
+const J = b => ({ headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(b) });
+let R = [], T = null, D = [], editing = null, timer = null;
+
+const nodesOf = id => T.nodes.filter(n => n.rule_ids.includes(id));
+const usedBy = id => nodesOf(id).map(n => n.title);
+function drawRules() {
+  $('#cnt').textContent = R.length;
+  $('#rules').innerHTML = R.map((r, i) => editing === i ? form(r, i) : `<div class="rule"><div class="hd"><b>${esc(r.title)}</b><span class="chip">${esc(r.id)}</span>
+      ${nodesOf(r.id).length ? '<span class="chip ok">проверяется автоматически</span>' : '<span class="chip warn">нет автоматической проверки</span>'}
+      <a href="#" onclick="edit(${i});return false">изменить</a></div>
+      <div class="muted" style="font-size:13px">${esc(r.source)}${r.origin ? ' · из документа ' + esc(r.origin) : ''}</div>
+      <div>${esc(r.text)}</div>${nodesOf(r.id).map(n => `<div class="how">Как находится: <a href="/tree#${esc(n.id)}"><b>${esc(n.title)}</b></a>${n.enabled ? '' : ' <span class="warn">(выключена)</span>'} — ${esc(n.observe)}</div>`).join('')}</div>`).join('')
+    + (editing === -1 ? form({ id: '', source: '', title: '', text: '', check: '' }, -1) : '');
+}
+function form(r, i) {
+  return `<div class="rule edit"><label>ID</label><input id="e_id" value="${esc(r.id)}">
+    <label>Название</label><input id="e_title" value="${esc(r.title)}"><label>Источник (документ, пункт)</label><input id="e_source" value="${esc(r.source)}">
+    <label>Текст нормы</label><textarea id="e_text">${esc(r.text)}</textarea><label>Что видно на камере при нарушении</label><textarea id="e_check">${esc(r.check)}</textarea>
+    <div class="row" style="margin-top:8px"><button onclick="saveRule(${i})">Сохранить</button><button class="sec" onclick="editing=null;drawRules()">Отмена</button>
+    ${i >= 0 ? `<button class="sec bad" onclick="delRule(${i})">Удалить</button>` : ''}<span id="es" class="bad"></span></div></div>`;
+}
+function edit(i) { editing = i; drawRules(); }
+async function saveRules(next) {
+  try { await api('/api/ui/rules', { method: 'PUT', ...J(next) }); R = next; editing = null; drawRules(); }
+  catch (e) { $('#es').textContent = e.message; }
+}
+function saveRule(i) {
+  const r = { ...(i >= 0 ? R[i] : { fewshot: [] }) };
+  for (const k of ['id', 'title', 'source', 'text', 'check']) r[k] = $('#e_' + k).value.trim();
+  const next = [...R]; i >= 0 ? next[i] = r : next.push(r); saveRules(next);
+}
+function delRule(i) {
+  if (usedBy(R[i].id).length) { $('#es').textContent = 'Правило используется в дереве проверок — сначала уберите его там.'; return; }
+  if (confirm('Удалить правило ' + R[i].id + '?')) saveRules(R.filter((_, j) => j !== i));
+}
+
+function drawDocs() {
+  $('#docs').innerHTML = D.map(d => {
+    const head = `<div class="row"><b>${esc(d.filename)}</b><span class="muted">${d.status === 'processing' ? `<span class="warn">LLM читает… ${d.chunks_done}/${d.chunks_total} частей</span>` : d.status === 'failed' ? '<span class="bad">ошибка</span>' : 'готово'}</span>
+      <span class="muted">${d.suggestions.length} предложений</span></div>`;
+    const fresh = d.suggestions.map((s, i) => [s, i]).filter(([s]) => !(s.exists?.length && s.status === 'pending'));
+    const dup = d.suggestions.filter(s => s.exists?.length && s.status === 'pending');
+    return head + (dup.length ? `<details class="muted" style="margin:6px 0"><summary>Уже есть в каталоге: ${dup.length} (${dup.map(s => esc(s.exists.join('/'))).join(', ')})</summary>
+      ${dup.map(s => `<div style="font-size:13px">${esc(s.source)} — ${esc(s.title)} → ${esc(s.exists.join(', '))}</div>`).join('')}</details>` : '')
+      + fresh.map(([s, i]) => `<div class="sg ${s.status}">
+      <div class="row"><b>${esc(s.title)}</b><span class="chip">${esc(s.source)}</span>${s.visual ? '<span class="chip ok">видно на камере</span>' : '<span class="chip">не проверяется по видео</span>'}
+        ${s.node && s.node !== 'none' ? `<span class="chip">LLM: проверка «${esc((T.nodes.find(n => n.id === s.node) || {}).title || s.node)}»</span>` : ''}
+        ${s.status === 'accepted' ? `<span class="ok">принято как ${esc(s.rule_id)}</span>` : s.status === 'rejected' ? '<span class="muted">отклонено</span>' : ''}</div>
+      <div style="font-size:14px">«${esc(s.quote)}»</div>${s.check ? `<div class="muted" style="font-size:13px">Камера: ${esc(s.check)}</div>` : ''}
+      ${s.status === 'pending' ? `<div class="edit" id="sg_${d.id}_${i}" hidden><label>Название</label><input data-k="title" value="${esc(s.title)}"><label>Источник</label><input data-k="source" value="${esc(s.source)}">
+        <label>Текст</label><textarea data-k="quote">${esc(s.quote)}</textarea><label>Что видно на камере</label><textarea data-k="check">${esc(s.check)}</textarea></div>
+        <div class="row" style="margin-top:6px"><button onclick="decide('${d.id}',${i},'accept')">Принять</button><button class="sec" onclick="$('#sg_${d.id}_${i}').hidden=false">Изменить</button>
+        <button class="sec" onclick="decide('${d.id}',${i},'reject')">Отклонить</button></div>` : ''}</div>`).join('');
+  }).join('<hr style="border:0;border-top:1px solid var(--line)">');
+  clearTimeout(timer); if (D.some(d => d.status === 'processing')) timer = setTimeout(loadDocs, 4000);
+}
+async function loadDocs() { D = await api('/api/ui/docs'); drawDocs(); }
+async function decide(did, i, action) {
+  const box = document.getElementById(`sg_${did}_${i}`), edit = {};
+  if (box && !box.hidden) box.querySelectorAll('[data-k]').forEach(el => edit[el.dataset.k] = el.value);
+  try { await api(`/api/ui/docs/${did}/suggestions/${i}`, { method: 'POST', ...J({ action, edit }) }); }
+  catch (e) { alert(e.message); }
+  R = await api('/api/ui/rules'); drawRules(); loadDocs();
+}
+$('#dgo').onclick = async () => {
+  const f = $('#df').files[0]; if (!f) return;
+  const fd = new FormData(); fd.append('file', f); $('#dst').textContent = 'Загрузка…';
+  try { await api('/api/ui/docs', { method: 'POST', body: fd }); $('#dst').textContent = 'Документ в очереди, LLM извлекает правила…'; }
+  catch (e) { $('#dst').textContent = 'Ошибка: ' + e.message; }
+  loadDocs();
+};
+
+async function loadEval() {
+  const e = await api('/api/ui/eval_rules'); if (!e) return;
+  $('#evalc').hidden = false;
+  $('#eval').innerHTML = `<p class="muted" style="margin-top:0">Локальная LLM (${esc(e.model)}) прочитала «Каталог правил» с нуля; сравнение с нашим ручным каталогом (${e.ref_paragraphs} пунктов).</p>
+    <div class="kv"><div><b>${Math.round(e.coverage * 100)}%</b>пунктов документа извлечено (${e.paragraphs_in_doc} всего)</div>
+    <div><b>${Math.round(e.visual_recall_vs_ours * 100)}%</b>наших правил отмечены как видимые на камере</div>
+    <div><b>${Math.round(e.visual_precision_vs_ours * 100)}%</b>«видимых» по LLM есть у нас</div>
+    <div><b>${esc(e.node_mapping)}</b>правил верно сопоставлены с проверкой</div><div><b>${e.seconds} с</b>время на документ</div></div>
+    ${e.missed.length ? `<p class="muted">Не извлечено: ${e.missed.map(m => esc(m.join(' п.'))).join(', ')}</p>` : ''}`;
+}
+(async () => { [R, T] = await Promise.all([api('/api/ui/rules'), api('/api/ui/tree')]); drawRules(); loadDocs(); loadEval(); })();
+</script>
+</body></html>

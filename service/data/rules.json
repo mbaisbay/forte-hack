@@ -1,0 +1,132 @@
+[
+  {
+    "id": "231.12.1",
+    "source": "Постановление НБРК №231, Глава 2 §1, п.12",
+    "title": "Личные вещи кассира в кассовом узле",
+    "text": "Хранение личных вещей, наличных денег и ценностей работников банка осуществляется вне кассового узла. Допускается внос лекарств, медизделий и средств связи без фото/видео.",
+    "check": "Are the cashier's personal items (cup, food, handbag, cosmetics) on the cash desk?",
+    "fewshot": [
+      "Violation: a coffee cup or handbag stands on the cashier's desk. Correct: only work items (laptop, counter, documents, cash) on the desk."
+    ]
+  },
+  {
+    "id": "231.19.1",
+    "source": "Постановление НБРК №231, Глава 2 §2, п.19 пп.1",
+    "title": "Нет визуальной идентификации клиента по документу",
+    "text": "Кассовый работник проводит визуальную идентификацию клиента, вносящего наличные деньги, с документом, удостоверяющим его личность (или цифровым документом).",
+    "check": "Does the cashier take or handle the client's cash without first being shown the client's ID document?",
+    "fewshot": [
+      "Violation: the client hands over cash and the cashier starts counting; no ID card or phone with digital ID is shown. Correct: the client shows an ID, the cashier looks at it, then takes the cash."
+    ]
+  },
+  {
+    "id": "231.19.4",
+    "source": "Постановление НБРК №231, Глава 2 §2, п.19 пп.4",
+    "title": "Сумма не сверена с документом / системой",
+    "text": "Кассовый работник сверяет соответствие суммы, указанной в приходном кассовом документе, с общей суммой фактически принятых наличных денег.",
+    "check": "After counting, does the cashier put the cash away without checking the amount on the computer or the document?",
+    "fewshot": [
+      "Violation: counted cash goes straight into the safe; the cashier never looks at or types on the laptop. Correct: after counting, the cashier checks the screen/document."
+    ]
+  },
+  {
+    "id": "231.19.6",
+    "source": "Постановление НБРК №231, Глава 2 §2, п.19 пп.6",
+    "title": "Клиенту не выдан подтверждающий документ",
+    "text": "Кассовый работник выдает клиенту документ, подтверждающий проведение кассовой операции.",
+    "check": "Does the client leave without being handed a receipt/confirmation paper?",
+    "fewshot": [
+      "Violation: the operation ends and the client walks away empty-handed. Correct: the cashier hands the client a paper receipt before they leave."
+    ]
+  },
+  {
+    "id": "231.20.1",
+    "source": "Постановление НБРК №231, Глава 2 §2, п.20",
+    "title": "Наличные не убраны в закрываемое хранилище / сейф открыт",
+    "text": "На рабочем месте находятся только наличные деньги текущего клиента. Все ранее принятые наличные хранятся в устройствах, закрывающихся на ключ (сейф, шкаф, ящик).",
+    "check": "Is accepted cash left on the desk while the cashier is away, while serving the next client, or doing something else? Is the safe left open?",
+    "fewshot": [
+      "Violation: cash lies on the desk when the cashier leaves or a new client sits down; or the safe door stays open. Correct: cash goes into the safe, the safe is closed."
+    ]
+  },
+  {
+    "id": "231.21.1",
+    "source": "Постановление НБРК №231, Глава 2 §2, п.21",
+    "title": "Деньги по разным документам приняты вместе",
+    "text": "Если клиент вносит деньги по нескольким приходным документам, кассир принимает деньги по каждому документу отдельно.",
+    "check": "Does the cashier combine cash from different clients or deposits into one pile?",
+    "fewshot": [
+      "Violation: new cash is added to a pile left from the previous client. Correct: each deposit is counted and stored separately."
+    ]
+  },
+  {
+    "id": "231.22.1",
+    "source": "Постановление НБРК №231, Глава 2 §2, п.22",
+    "title": "Кассир покинул рабочее место до окончания обслуживания",
+    "text": "Кассовому работнику не допускается покидать рабочее место до окончания обслуживания клиента.",
+    "check": "Does the cashier walk away from the desk in the middle of an operation?",
+    "fewshot": [
+      "Violation: the cashier stands up and leaves while a client or cash/bag is still being processed. Correct: the cashier stays until the operation is finished."
+    ]
+  },
+  {
+    "id": "231.24.3",
+    "source": "Постановление НБРК №231, Глава 2 §2, п.24 пп.3-4",
+    "title": "Сумка инкассации не проверена / не пересчитана",
+    "text": "При приеме от инкассации кассир проверяет целостность сумки и правильность пломбирования; деньги пересчитываются.",
+    "check": "When a cash bag is delivered, is the cash taken without inspecting the bag/seal or counting the money?",
+    "fewshot": [
+      "Violation: cash from the bag goes into the safe without a counting machine or hand counting. Correct: the seal is inspected and the cash is counted."
+    ]
+  },
+  {
+    "id": "231.46.1",
+    "source": "Постановление НБРК №231, Глава 2 §4, п.43, п.46",
+    "title": "Смешение номиналов при сортировке",
+    "text": "Сортировка наличных осуществляется по номиналам; каждые 100 листов банкнот одного номинала формируются в корешки.",
+    "check": "Are banknotes of different denominations (different colors) put into one stack?",
+    "fewshot": [
+      "Violation: notes of different colors are stacked together. Correct: each stack has a single denomination."
+    ]
+  },
+  {
+    "id": "231.75.1",
+    "source": "Постановление НБРК №231, Глава 2 §8, п.75",
+    "title": "Посторонний в кассовом помещении",
+    "text": "Вход в кладовую/сейфовую комнату разрешается только лицам, ответственным за сохранность наличных, и лицам с распорядительным документом в их сопровождении.",
+    "check": "Does an outsider go behind the cashier's desk or stay in the room unaccompanied?",
+    "fewshot": [
+      "Violation: a client walks around to the cashier's side or is alone in the room. Correct: clients stay on the client side of the desk."
+    ]
+  },
+  {
+    "id": "14.08.1",
+    "source": "Постановление НБРК №14, Глава 3, п.8 и п.16 пп.1",
+    "title": "Дверь кассы оставлена открытой",
+    "text": "Кассовый узел изолирован одним закрывающимся служебным входом; каждая касса имеет отдельный вход с закрывающейся на замок дверью.",
+    "check": "Is the door of the cash room left open after someone passes through?",
+    "fewshot": [
+      "Violation: the door stays open for several seconds after a person enters or exits. Correct: the door is closed right after passing."
+    ]
+  },
+  {
+    "id": "14.21.1",
+    "source": "Постановление НБРК №14, Глава 3, п.21",
+    "title": "Инкассация на виду у третьих лиц",
+    "text": "При устройстве бокса обеспечивается ограничение доступа и просмотра третьими лицами за осуществлением инкассации.",
+    "check": "During a cash collection, can outsiders watch through an open door, or is a third person nearby?",
+    "fewshot": [
+      "Violation: the bag handover happens with the door open or other people watching. Correct: the door is closed and only the cashier and courier are present."
+    ]
+  },
+  {
+    "id": "53.26.1",
+    "source": "Требования к информационной безопасности банков (Постановление НБРК №53), п.26",
+    "title": "Компьютер не заблокирован при уходе",
+    "text": "При оставлении рабочего места работник блокирует рабочую станцию.",
+    "check": "When the cashier leaves the desk, does the laptop stay on and unlocked?",
+    "fewshot": [
+      "Violation: the cashier walks away and the laptop screen stays lit. Correct: the cashier locks or closes the laptop before leaving."
+    ]
+  }
+]

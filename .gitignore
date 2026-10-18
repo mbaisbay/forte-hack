@@ -1,0 +1,17 @@
+# whitelist: code, prompts, docs. No videos, labels, model weights, organiser documents or runtime data.
+/*
+!/.gitignore
+!/README.md
+!/final_results.md
+!/AUTORESEARCH.md
+!/src/
+!/prompts/
+!/configs/
+!/service/
+!/runs/
+/runs/*
+!/runs/journal.md
+service/storage/
+*.pt
+__pycache__/
+*.bak.json
