@@ -14,24 +14,36 @@
   .flow { font-size:13px; color:var(--muted); }
   .node:target { outline:2px solid var(--acc); }
   .sugg { border:1px dashed var(--warn); border-radius:8px; padding:8px 10px; margin:6px 0; }
+  .guide { display:grid; grid-template-columns:repeat(3,1fr); gap:16px; } .guide p { grid-column:1/-1; margin:0; }
+  summary { cursor:pointer; padding:8px 0; } summary:hover { color:var(--acc); }
+  .settings { border-top:1px solid var(--line); margin-top:16px; padding-top:6px; }
+  .params { display:grid; grid-template-columns:repeat(auto-fit,minmax(240px,1fr)); gap:20px; }
+  .param-field { background:#f8f7fa; padding:16px; border-radius:10px; } .param-field label { display:block; color:var(--ink); font-weight:600; }
+  .param-field p { margin:10px 0 0; } .dependency { border-left:3px solid #d6b3c2; padding:8px 12px; background:#faf7f9; font-size:13px; }
+  .linked-rule { display:flex; justify-content:space-between; align-items:center; gap:12px; border:1px solid var(--line); border-radius:10px; padding:12px; margin:10px 0; flex-wrap:wrap; }
+  .linked-rule b { font-size:11px; color:var(--acc); } .settings > label { display:block; margin:16px 0 6px; }
+  .settings > select { width:100%; } .technical { margin-top:16px; font-size:12px; color:var(--muted); }
+  .save-bar { position:sticky; bottom:12px; padding:16px 20px; background:#fff; border:1px solid var(--line); border-radius:12px; box-shadow:0 5px 25px #28232e15; z-index:2; }
+  .node.off { opacity:1; } .node.off > .hd { color:var(--muted); }
+  @media(max-width:650px) { .guide { grid-template-columns:1fr; } .params { grid-template-columns:1fr; } }
 </style>
 </head>
 <body>
 <nav><b>Кассовая дисциплина</b><a href="/">Видео</a><a href="/rules">Правила</a><a class="on" href="/tree">Дерево проверок</a></nav>
 <main>
-  <h1>Дерево проверок</h1>
-  <p class="sub">По этому дереву сервис принимает решение. Каждая проверка смотрит на признаки, которые модели извлекают из кадров (люди, предметы на столе, сейф, экран ноутбука, дверь). Видео получает вердикт «нарушение», если сработала хотя бы одна включённая проверка; вложенные проверки работают, только если включён и сработал родитель. Изменения применяются к следующим анализам — для уже загруженных видео нажмите «Перезапустить анализ».</p>
+  <h1>Настройки проверок</h1>
+  <p class="sub">Выберите, что искать на видео. Для каждой проверки можно настроить условия и указать правило, которое будет показано в результате.</p>
+  <div class="card guide"><b>1. Включите нужные проверки</b><b>2. При необходимости измените условия</b><b>3. Нажмите «Сохранить настройки»</b><p class="muted">Настройки действуют на новые анализы. Чтобы проверить старое видео с новыми настройками, откройте его на странице «Видео» и нажмите «Перепроверить».</p></div>
 
   <div class="card" id="sgc" hidden><h2>Предложения LLM: связать новые правила с проверками</h2><div id="sugg"></div></div>
 
-  <div class="card"><h2>Общие параметры</h2><div class="params" id="gp"></div>
-    <div class="flow">person_min_y — нижний край рамки человека (доля высоты кадра), ниже которого человек считается у стола; отсекает людей за стеклом. Для другой камеры его стоит проверить в первую очередь. person_conf — минимальная уверенность детектора людей.</div></div>
+  <details class="card"><summary><b>Настройка камеры и распознавания людей</b><span class="muted"> · обычно менять не нужно</span></summary><p class="muted">Откройте, если сервис считает прохожих за стеклом или пропускает людей у кассы.</p><div class="params" id="gp"></div></details>
 
   <div id="tree"></div>
 
   <div class="card"><h2>Правила без автоматической проверки</h2><div id="unmapped" class="muted"></div></div>
 
-  <div class="row" style="position:sticky;bottom:0;background:var(--bg);padding:10px 0"><button id="save">Сохранить дерево</button><button class="sec" onclick="load()">Отменить изменения</button><span id="st" class="muted"></span></div>
+  <div class="row save-bar"><button id="save">Сохранить настройки</button><button class="sec" onclick="load()">Отменить изменения</button><span id="st" class="muted" role="status" aria-live="polite"></span></div>
 </main>
 <script>
 const $ = s => document.querySelector(s);
@@ -40,19 +52,30 @@ const api = async (u, o) => { const r = await fetch(u, o); if (!r.ok) throw new 
 let T, R, S = [];
 const rule = id => R.find(r => r.id === id);
 
+const PARAMS = {"person_min_y":["Граница зоны кассы","Нижний край рамки человека должен быть ниже этой отметки. Больше — меньше людей на заднем плане учитываются. 0% — верх кадра, 100% — низ.",100,0,100],"person_conf":["Уверенность распознавания человека","Больше — меньше сомнительных распознаваний, но можно пропустить человека.",100,0,100],"T_client":["Доля кадров с клиентом у кассы","20% — минимум 12 из 60 кадров с двумя людьми. Больше — обслуживание сложнее подтвердить.",100,0,100],"T_pers":["Как долго видны личные вещи","35% — минимум 21 кадр подряд из 60. Больше — короткие появления не вызывают нарушение.",100,0,100],"T_door_min":["Минимальное изменение сцены","Меньше — реакция на более мелкие изменения между началом и концом. Это косвенный признак открытой двери.",100,0,100],"T_door_max":["Максимальное изменение сцены","Больше — допускаются более сильные изменения изображения. Изменения выше порога исключаются.",100,0,100],"on_min":["Минимальная яркость включённого экрана","От 0 (чёрный) до 255 (белый). Меньше — даже тусклый экран считается включённым.",1,0,255],"T_lock":["Оставшаяся яркость экрана","75% — экран считается не заблокированным, если осталось хотя бы 75% яркости. Меньше — срабатывает чаще.",100,0,100],"min_frames":["Кадров с оставленными деньгами","Считаются кадры с наличными без людей. Больше — нужно больше подтверждений.",1,1,null],"bag":["Кадров с сумкой","Считаются по всему видео, если кассир ушёл. Больше — нужно больше подтверждений.",1,1,null],"last_k":["Сколько последних кадров проверить","Для сейфа берутся эти кадры в конце видео. Это кадры, а не секунды.",1,1,null],"min_open":["В скольких кадрах сейф открыт","Например: из 3 последних кадров минимум в 2 сейф открыт. Больше — нужно больше подтверждений.",1,1,null]};
+const DESCRIPTIONS = {};
+function dirty() { $('#st').textContent = 'Есть несохранённые изменения'; }
+function paramHtml(k, v, index) {
+  const [title, help, scale, min, max] = PARAMS[k] || [k, 'Параметр проверки.', 1, null, null];
+  return `<div class="param-field"><label for="p_${index}_${esc(k)}">${esc(title)}</label><div class="row"><input id="p_${index}_${esc(k)}" type="number" step="${scale === 100 ? '0.1' : '1'}" ${min === null ? '' : `min="${min}"`} ${max === null ? '' : `max="${max}"`} value="${Number((v * scale).toFixed(5))}" aria-describedby="help_${index}_${esc(k)}" onchange="setParam(this, '${k}', ${index}, ${scale})"><span>${scale === 100 ? '%' : k === 'on_min' ? 'из 255' : 'кадров'}</span></div><p id="help_${index}_${esc(k)}" class="flow">${esc(help)}</p></div>`;
+}
+function setParam(el, k, index, scale) {
+  if (!el.checkValidity() || el.value === '') { el.reportValidity(); return; }
+  const target = index < 0 ? T.params : T.nodes[index].params;
+  target[k] = Number(el.value) / scale; dirty();
+}
 function nodeHtml(n) {
-  const kids = T.nodes.filter(k => k.parent === n.id), i = T.nodes.indexOf(n);
-  return `<div class="node ${n.enabled ? '' : 'off'}" id="${esc(n.id)}"><div class="hd">
-      <label style="color:var(--ink)"><input type="checkbox" ${n.enabled ? 'checked' : ''} onchange="T.nodes[${i}].enabled=this.checked;draw()"> <b>${esc(n.title)}</b></label><span class="chip">${esc(n.id)}</span></div>
-    <label>Что проверяется</label><textarea onchange="T.nodes[${i}].observe=this.value">${esc(n.observe)}</textarea>
-    ${Object.keys(n.params).length ? `<div class="params">${Object.entries(n.params).map(([k, v]) => `<label>${esc(k)}<br><input type="number" step="any" value="${v}" onchange="T.nodes[${i}].params['${k}']=parseFloat(this.value)"></label>`).join('')}</div>` : ''}
-    ${kids.length ? '' : `<label>Правила, на которые ссылается эта проверка (тип нарушения = первое)</label><div>${n.rule_ids.map((r, j) => `<span class="chip">${esc(r)} ${esc(rule(r)?.title || '⚠ нет в каталоге')} <a href="#" onclick="T.nodes[${i}].rule_ids.splice(${j},1);draw();return false">×</a></span>`).join('')}
-        <select onchange="if(this.value){T.nodes[${i}].rule_ids.push(this.value);draw()}"><option value="">+ правило</option>${R.filter(r => !n.rule_ids.includes(r.id)).map(r => `<option value="${esc(r.id)}">${esc(r.id)} — ${esc(r.title)}</option>`).join('')}</select></div>
-      <label>Описание для проверяющего (что видно и почему это нарушение)</label><textarea onchange="T.nodes[${i}].message=this.value">${esc(n.message)}</textarea>`}
-    ${kids.length ? `<div class="kids">${kids.map(nodeHtml).join('')}</div>` : ''}</div>`;
+ const i=T.nodes.indexOf(n), kids=T.nodes.filter(k=>k.parent===n.id), parent=T.nodes.find(k=>k.id===n.parent);
+ return '<section class="node" id="'+esc(n.id)+'"><div class="hd"><h2 style="margin:0;flex:1">'+esc(n.title)+'</h2><label><input type="checkbox" '+(n.enabled?'checked':'')+' onchange="T.nodes['+i+'].enabled=this.checked;draw();dirty()"> Включить проверку</label></div>'+
+ (parent?'<p class="dependency">Работает только при условии «'+esc(parent.title)+'». '+(parent.enabled?'':'Сейчас оно выключено.')+'</p>':'')+
+ '<p>'+esc(n.observe)+'</p>'+
+ (Object.keys(n.params).length?'<details class="settings"><summary>Изменить условия срабатывания</summary><div class="params">'+Object.entries(n.params).map(([k,v])=>paramHtml(k,v,i)).join('')+'</div></details>':'')+
+ (kids.length?'<p class="flow">Общее условие для проверок ниже. Выключение отключает всю группу.</p><div class="kids">'+kids.map(nodeHtml).join('')+'</div>':
+ '<details class="settings"><summary>Правила и текст результата</summary><p class="flow">Эти правила будут указаны как основание. Первое задаёт тип нарушения. Добавление правила меняет ссылку в результате, а не способ поиска.</p>'+n.rule_ids.map((rid,j)=>'<div class="linked-rule"><div><b>'+(j===0?'Основное правило':'Дополнительное основание')+'</b><div>'+esc(rule(rid)?.title||rid)+'</div><small>'+esc(rule(rid)?.source||rid)+'</small></div><button class="sec" onclick="T.nodes['+i+'].rule_ids.splice('+j+',1);draw();dirty()">Убрать из проверки</button></div>').join('')+
+ '<label for="rule_'+i+'">Добавить основание из каталога</label><select id="rule_'+i+'" onchange="if(this.value){T.nodes['+i+'].rule_ids.push(this.value);draw();dirty()}"><option value="">Выберите правило…</option>'+R.filter(r=>!n.rule_ids.includes(r.id)).map(r=>'<option value="'+esc(r.id)+'">'+esc(r.title)+' ('+esc(r.id)+')</option>').join('')+'</select><label for="message_'+i+'">Что написать рядом с найденным нарушением</label><p class="flow">Это только текст результата. Он не меняет условия поиска.</p><textarea id="message_'+i+'" onchange="T.nodes['+i+'].message=this.value;dirty()">'+esc(n.message)+'</textarea></details>')+'</section>';
 }
 function draw() {
-  $('#gp').innerHTML = Object.entries(T.params).map(([k, v]) => `<label>${esc(k)}<br><input type="number" step="any" value="${v}" onchange="T.params['${k}']=parseFloat(this.value)"></label>`).join('');
+  $('#gp').innerHTML = Object.entries(T.params).map(([k,v]) => paramHtml(k,v,-1)).join('');
   $('#tree').innerHTML = T.nodes.filter(n => !n.parent).map(nodeHtml).join('');
   const used = new Set(T.nodes.flatMap(n => n.rule_ids));
   $('#unmapped').innerHTML = R.filter(r => !used.has(r.id)).map(r => `<span class="chip">${esc(r.id)} ${esc(r.title)}</span>`).join('') || 'все правила связаны с проверками';
@@ -68,9 +91,15 @@ async function load() {
   if (location.hash) document.getElementById(location.hash.slice(1))?.scrollIntoView();
 }
 $('#save').onclick = async () => {
+  if ([...document.querySelectorAll('input[type=number]')].some(el => !el.reportValidity() || el.value === '')) return;
+  const safe = T.nodes.find(n => n.id === 'safe_open');
+  const door = T.nodes.find(n => n.id === 'door_open');
+  if (safe && safe.params.min_open > safe.params.last_k) { $('#st').textContent = 'Проверьте значения: минимум должен быть меньше максимума, число подтверждений не больше числа кадров.'; return; }
+  if (door && door.params.T_door_min >= door.params.T_door_max) { $('#st').textContent = 'Проверьте значения: минимум должен быть меньше максимума, число подтверждений не больше числа кадров.'; return; }
   try { await api('/api/ui/tree', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(T) }); $('#st').textContent = 'Сохранено'; S = await api('/api/ui/mapping_suggestions'); draw(); }
   catch (e) { $('#st').textContent = 'Ошибка: ' + e.message; }
 };
-load();
+document.querySelector('main').addEventListener('input', dirty);
+load().catch(e => { $('#st').textContent = 'Проверьте значения: минимум должен быть меньше максимума, число подтверждений не больше числа кадров.' + e.message; });
 </script>
 </body></html>
