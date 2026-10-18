@@ -68,6 +68,6 @@ python src/eval_rules.py ../Каталог_правил_кассовые_опе�
 ## Measured baselines (40 training videos; update when you change things)
 - **Verdict on precomputed features:** recall 24/24, precision 0.83, accuracy 87.5%, F2 0.960.
 - **Full service:** F2 0.952 on the originals. On a simulated new angle, recall is 23/24.
-- **Known miss:** Х-44, mixed denominations by a cashier working alone. It isn't visible to the models and is deliberately not flagged.
+- **Known miss:** Х-44: the cashier checked the cash on only one of the two checking machines (rule 231.41.1). There is no detector for this yet; it needs both machines located and tracked.
 - **Rule extraction:** 24/24 paragraphs, 10/12 visible rules recognised, 4/5 check mappings, 90 s per document.
 - **Experiment history:** `../runs/journal.md` and `../final_results.md`.

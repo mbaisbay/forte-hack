@@ -73,7 +73,7 @@ Idea: no model judges the whole scene. Each model answers one narrow, visible qu
 - **False positives:**
   - Four clean client sessions (Х-3, Х-5, Х-16, Х-19). Clearing them would lose Х-1, Х-4 and Х-18.
   - Х-12, plus one borderline lock case (Х-29) or Х-31.
-- **Mixed denominations (231.46.1, Х-44):** the 4B models can't see it at this resolution.
+- **Х-44 (231.41.1):** the cash was checked on only one of the two machines. No detector exists for this; the label was corrected from "mixed denominations".
 - **Timestamps:**
   - 16 of the 24 violation videos have a prediction within ±2 s.
   - 19 of the 33 labelled violations match on time (±5 s) and rule.

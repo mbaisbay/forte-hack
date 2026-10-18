@@ -61,7 +61,7 @@ Storage: `storage/service.db` (SQLite) holds videos, results, labels, documents 
   - sources are built by code from the document structure, so no invented references
 
 ## Known limits
-- Violations about the banknotes themselves (mixed denominations, sorting) are not visible to 4B models at this resolution.
+- Checks of the banknotes themselves (all checking machines used, sorting) have no detector yet (rule 231.41.1, e.g. Х-44).
 - **Missing objects.** If the safe or laptop is not found, that check silently does not fire.
 - **Camera-specific threshold.** `person_min_y` (people behind the glass wall) depends on the camera. Check it on `/tree` for a new angle.
 - **Recall over precision.** Clean videos with a client at the desk are often flagged (the "client_fallback" check), on purpose.
